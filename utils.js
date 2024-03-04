@@ -50,6 +50,9 @@ const Token = {
     OTHER: 39,
 
     EOF: 40,
+    TO: 41,
+    DOWNTO: 42,
+    FOR: 43,
 };
 
 class Position {
@@ -86,6 +89,9 @@ keywordMap.set("or", Token.OR);
 keywordMap.set("and", Token.AND);
 keywordMap.set("true", Token.TRUE);
 keywordMap.set("false", Token.FALSE);
+keywordMap.set("to", Token.TO);
+keywordMap.set("downto", Token.DOWNTO);
+keywordMap.set("for", Token.FOR);
 
 module.exports = {
     Token,

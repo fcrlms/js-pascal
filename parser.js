@@ -11,6 +11,7 @@ const {
     DeclAstNode,
     VarDeclAstNode,
     ProgramAstNode,
+    ForAstNode,
 } = require("./ast.js");
 
 function apply(ast) {
@@ -414,6 +415,33 @@ function command() {
         parser.consume(Token.DO, "Expected 'do' after while condition.");
         const body = command();
         return new WhileAstNode(symbol, expression, body);
+    }
+
+    if (parser.match(Token.FOR)) {
+        // 'for' ASSIGN ('to'|'downto') EXPR 'do' COMMAND
+        const symbol = parser.previous();
+
+        parser.consume(Token.ID, "Expected identifier after 'for'.");
+
+        const id = parser.previous();
+
+        parser.consume(Token.ASSIGN, "Expected assign operator after identifier.");
+
+        const assignop = parser.previous();
+        const assignexpr = expr();
+        const assignment = new AssignAstNode(assignop, id, assignexpr);
+
+        if (!parser.match(Token.TO, Token.DOWNTO)) {
+            parser.error(parser.peek(), "Expected either 'to' or 'downto' after assignment.");
+        }
+
+        const target = expr();
+
+        parser.consume(Token.DO, "Expected 'do' after 'for' target expression.");
+
+        const body = command();
+
+        return new ForAstNode(symbol, assignment, target, body);
     }
 
     parser.advance();

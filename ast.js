@@ -35,6 +35,15 @@ class AssignAstNode {
     }
 }
 
+class ForAstNode {
+    constructor(symbol, assignment, targetexpr, body) {
+        this.symbol = symbol;
+        this. assingment = assignment;
+        this.targetexpr = targetexpr;
+        this.body = body;
+    }
+}
+
 class WhileAstNode {
     constructor(symbol, expr, body) {
         this.symbol = symbol;
@@ -90,6 +99,7 @@ module.exports = {
     NumAstNode,
     ProcCallAstNode,
     AssignAstNode,
+    ForAstNode,
     WhileAstNode,
     IfAstNode,
     CmdBlockAstNode,
