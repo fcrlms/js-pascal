@@ -41,9 +41,11 @@ function apply(ast) {
 }
 
 class Parser {
-    constructor (symbols) {
+    constructor (symbols, filepath) {
         this.symbols = symbols;
         this.pos = 0;
+
+        this.filepath = filepath;
 
         this.hadError = false;
         this.panicMode = false;
@@ -98,21 +100,21 @@ class Parser {
     error(symbol, msg) {
         this.hadError = true;
         this.panicMode = true;
-        const prefix = `file:${symbol.pos.line}:${symbol.pos.col}: `;
+        const prefix = `${this.filepath}:${symbol.pos.line}:${symbol.pos.col}: `;
         throw new Error(prefix + msg);
     }
 
     warn(symbol, msg) {
         this.hadError = true;
-        const prefix = `file:${symbol.pos.line}:${symbol.pos.col}: `;
+        const prefix = `${this.filepath}:${symbol.pos.line}:${symbol.pos.col}: `;
         console.error(prefix + msg);
     }
 }
 
 let parser = new Parser();
 
-module.exports = parse = (symbols) => {
-    parser = new Parser(symbols);
+module.exports = parse = (symbols, filepath) => {
+    parser = new Parser(symbols, filepath);
 
     let ast;
     try {

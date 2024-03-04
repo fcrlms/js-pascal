@@ -74,7 +74,7 @@ module.exports = lexer = (filepath) => {
             } while (charstream.curr() !== '}' && !charstream.is_finished());
 
             if (charstream.is_finished()) {
-                console.log(`filename:${start_pos.line}:${start_pos.col}: comentario nunca fechado.`);
+                console.error(`${filepath}:${start_pos.line}:${start_pos.col}: this comment wasn't closed.`);
                 break;
             } else {
                 pos.col++;
@@ -85,7 +85,10 @@ module.exports = lexer = (filepath) => {
         }
 
         if (c === '}') {
-            console.log("Fechamento de comentario sem inicio correspondente.");
+            console.error(
+                `${filepath}:${start_pos.line}:${start_pos.col}: ` +
+                `there is no corresponding '{'.`
+            );
             pos.col++;
             charstream.next();
             continue;
@@ -212,7 +215,11 @@ module.exports = lexer = (filepath) => {
         lexeme = "";
     }
 
-    symbol_arr.push(new Symbol(Token.EOF, "EOF", pos));
+    const last_symbol = symbol_arr[symbol_arr.length - 1];
+    const EOF_POS = new Position(last_symbol.pos.line, last_symbol.pos.col + last_symbol.lexeme.length);
+
+    // auxiliary symbol to make the parser code less horrible, adjacent to the last symbol;
+    symbol_arr.push(new Symbol(Token.EOF, "EOF", EOF_POS));
 
     return symbol_arr;
 }
