@@ -69,7 +69,7 @@ module.exports = lexer = (filepath) => {
 
                 if (charstream.curr() == '\n') {
                     pos.line += 1;
-                    pos.col = 0; // incrementa na proxima iteracao
+                    pos.col = 0; // next iter increments
                 }
             } while (charstream.curr() !== '}' && !charstream.is_finished());
 
@@ -95,7 +95,6 @@ module.exports = lexer = (filepath) => {
         }
 
         if (is_alpha(c)) {
-            // tratar ID aqui, pode ser bool tbm
             while (is_alphanum_(charstream.curr())) {
                 lexeme += charstream.curr();
                 pos.col++;

@@ -14,32 +14,6 @@ const {
     ForAstNode,
 } = require("./ast.js");
 
-function apply(ast) {
-    if (ast instanceof BinaryAstNode) {
-        const lvalue = apply(ast.left);
-        const rvalue = apply(ast.right);
-
-        switch (ast.symbol.type) {
-        case Token.SUBOP:
-            return lvalue - rvalue;
-        case Token.SUMOP:
-            return lvalue + rvalue;
-        case Token.MULTOP:
-            return lvalue * rvalue;
-        case Token.DIVOP:
-            return lvalue / rvalue;
-        }
-    } else if (ast instanceof UnaryAstNode) {
-        if (ast.symbol.type === Token.SUBOP) {
-            return - apply(ast.child);
-        } else {
-            return apply(ast.child);
-        }
-    } else if (ast instanceof NumAstNode) {
-        return ast.value;
-    }
-}
-
 class Parser {
     constructor (symbols, filepath) {
         this.symbols = symbols;
@@ -370,7 +344,6 @@ function composite_command() {
     return new CmdBlockAstNode(begin, commands);
 }
 
-// FAZER O FOR QUE O MALUCO N BOTOU NA GRAMATICA
 function command() {
     if (parser.match(Token.ID)) {
         const id = parser.previous();
@@ -420,7 +393,6 @@ function command() {
     }
 
     if (parser.match(Token.FOR)) {
-        // 'for' ASSIGN ('to'|'downto') EXPR 'do' COMMAND
         const symbol = parser.previous();
 
         parser.consume(Token.ID, "Expected identifier after 'for'.");
