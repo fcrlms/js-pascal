@@ -56,20 +56,37 @@ const Token = {
 };
 
 class Position {
+    /**
+     * @param {Number} line
+     * @param {Number} col
+     */
     constructor(line, col) {
+        /** @public @type {Number} */
         this.col = col;
+        /** @public @type {Number} */
         this.line = line;
     }
 }
 
 class Symbol {
+    /**
+     * @param {Token} type
+     * @param {String} lexeme
+     * @param {Position} pos
+     */
     constructor(type, lexeme, pos) {
+        /** @public @type {Token} */
         this.type = type;
+        /** @public @type {String} */
         this.lexeme = lexeme;
+        /** @public @type {Position} */
         this.pos = new Position(pos.line, pos.col);
     }
 }
 
+/**
+ * @type {Map<String, Token>}
+ */
 const keywordMap = new Map();
 keywordMap.set("program", Token.PROGRAM);
 keywordMap.set("var", Token.VAR);

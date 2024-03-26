@@ -25,10 +25,15 @@ class Parser {
         this.panicMode = false;
     }
 
+    /** @returns {Boolean} */
     reachedEnd() {
         return this.pos >= this.symbols.length;
     }
 
+     /**
+      * @param {Symbol} tokens
+      * @returns {Boolean}
+      */
     match(...tokens) {
         if (this.reachedEnd()) return false;
 
@@ -42,6 +47,10 @@ class Parser {
         return res;
     }
 
+    /**
+     * @param {Symbol} tokens
+     * @returns {Boolean}
+     */
     check(...tokens) {
         const symbol = this.peek();
         if (!symbol) return false;
@@ -49,6 +58,12 @@ class Parser {
         return tokens.some(t => t === symbol.type);
     }
 
+    /**
+     * @param {Symbol} token
+     * @param {String} msg
+     * @returns {Symbol}
+     * @throws {Error}
+     */
     consume(token, msg) {
         if (this.check(token)) {
             return this.advance();
@@ -57,20 +72,34 @@ class Parser {
         this.error(this.peek(), msg);
     }
 
+    /**
+     * @returns {Symbol}
+     */
     peek() {
         return this.symbols[this.pos];
     }
 
+    /**
+     * @returns {Symbol}
+     */
     advance() {
         if (!this.reachedEnd())
             this.pos++;
         return this.previous();
     }
 
+    /**
+     * @returns {Symbol}
+     */
     previous() {
         return this.symbols[this.pos - 1];
     }
 
+    /**
+     * @param {Symbol} symbol
+     * @param {String} msg
+     * @throws {Error}
+     */
     error(symbol, msg) {
         this.hadError = true;
         this.panicMode = true;
@@ -78,6 +107,10 @@ class Parser {
         throw new Error(prefix + msg);
     }
 
+    /**
+     * @param {Symbol} symbol
+     * @param {String} msg
+     */
     warn(symbol, msg) {
         this.hadError = true;
         const prefix = `${this.filepath}:${symbol.pos.line}:${symbol.pos.col}: `;
@@ -505,8 +538,9 @@ function factor() {
         node = new UnaryAstNode(symbol, node);
         break;
     case Token.ID: {
-        let exprs = [];
+        let exprs = null;
         if (parser.match(Token.LPAREN)) {
+            exprs = [];
             if (parser.check(Token.RPAREN)) {
                 parser.warn(parser.previous(), "Procedure calls without args are made without '()'");
             } else {
@@ -516,6 +550,7 @@ function factor() {
             parser.consume(Token.RPAREN, `Expected ')' after expression list.`);
         }
 
+        // if it's only a variable, `exprs` will be null
         node = new ProcCallAstNode(symbol, exprs);
         break;
     }
