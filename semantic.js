@@ -114,7 +114,7 @@ const scope = new Scopes();
  * @param {ProgramAstNode} ast
  */
 module.exports = semantic = (ast) => {
-    scope.set(ast.id.lexeme, new ScopeEntry(ast.id.type));
+    scope.set(ast.id.lexeme, new ScopeEntry(Token.PROGRAM));
 
     if (ast.vardecl) {
         handleVariableDeclarations(ast.vardecl);
@@ -143,18 +143,28 @@ function handleCommandBlock(cmdblock) {
  */
 function handleCommand(command) {
     if (command instanceof AssignAstNode) {
-        const vartype = scope.get(command.id.lexeme);
+        const entry = scope.get(command.id.lexeme);
 
-        if (!vartype) {
-            console.log(`${command.id.lexeme} wasn't declared`);
+        let vartype = undefined;
+        if (entry) {
+            if (entry.type === Token.PROCEDURE) {
+                console.error(`Cannot assign to procedure.`);
+            } else if (entry.type === Token.PROGRAM) {
+                console.error(`Cannot assign to program.`);
+            } else {
+                vartype = entry.type; // only expect type on a valid assignment
+            }
+        } else {
+            console.error(`${command.id.lexeme} was not declared`);
         }
 
-        //handle expression and warn on type mismatch
+        // TODO: better warning for assignment type mismatch
+        handleExpression(command.expr, vartype);
     } else if (command instanceof IfAstNode) {
         if (command.expr instanceof BinaryAstNode) {
 
             if (!isRelation(command.expr.symbol)) {
-                console.log("not relational expression");
+                console.error("not relational expression");
             }
 
         } else {
@@ -162,11 +172,11 @@ function handleCommand(command) {
             if (command.expr instanceof UnaryAstNode) {
                 //NOT TODO
                 if (!isRelation(command.expr.symbol)) {
-                    console.log("not relational expression");
+                    console.error("not relational expression");
                 }
 
             } else {
-                console.log("reclamar");//caso n precise do proc
+                console.error("reclamar");//caso n precise do proc
             }
         }
     } else if (command instanceof WhileAstNode) {
@@ -174,20 +184,18 @@ function handleCommand(command) {
     } else if (command instanceof ForAstNode) {
         // num sei
     } else if (command instanceof ProcCallAstNode) {
-        const procinfo = scopes.get(command.symbol.lexeme);
+        const entry = scope.get(command.symbol.lexeme);
 
-        if (!procinfo) {
-            console.error(`${procinfo} is not declared.`);
+        if (!entry) {
+            console.error(`'${command.symbol.lexeme}' is not declared.`);
             return;
         }
 
-        if (procinfo === Token.ID) { // is variable
-            console.error(`${procinfo} is not a procedure.`);
+        if (!entry.isOfType(Token.PROCEDURE)) { // is variable
+            console.error(`'${command.symbol.lexeme}' is not a procedure.`);
             return;
         }
 
-        // TODO: check if procedure is called correctly
-        // do after implementing procedures on scope
         handleProcedureCall(command);
     }
 }
@@ -196,6 +204,7 @@ function handleCommand(command) {
 
 /**
  * @param {(BinaryAstNode | UnaryAstNode | ProcCallAstNode | NumAstNode)} expr
+ * @param {Token} expectedType
  */
 function handleExpression (expr, expectedType = undefined) {
     if (expr instanceof ProcCallAstNode) {
@@ -226,18 +235,13 @@ function handleExpression (expr, expectedType = undefined) {
             /**
              * Since we reached a parenthesized expression, the parenthesis is
              * no longer needed, we'll remove parentheses until we reach another
-             * expression and recurse, if an empty node is found report error
-             * because the expression has no value
+             * expression and recurse
              */
             while (expr && expr.symbol.type === Token.LPAREN) {
                 expr = expr.child;
             }
 
-            if (expr) {
-                handleExpression(expr, expectedType);
-            } else {
-                console.error("Expression doesn't return value.");
-            }
+            handleExpression(expr, expectedType);
         }
     }
     else if (expr instanceof BinaryAstNode) {
@@ -255,40 +259,78 @@ function compareTypes(expectedType, entry) {
     }
 
     switch (expectedType) {
-    case Token.BOOLEAN: {
-        console.error(`Expected boolean, got ${entry.type}`)
+    case Token.BOOLEAN:
+        if (entry.type === Token.TRUE) break;
+        if (entry.type === Token.FALSE) break;
+
+        console.error(`Expected boolean, got ${typeToString(entry.type)}`)
+        break;
+    case Token.INT:
+        if (entry.type === Token.INTCONST) break;
+
+        console.error(`Expected integer, got ${typeToString(entry.type)}`)
+        break;
+    case Token.REAL:
+        if (entry.type === Token.REALCONST) break;
+
+        // both are promoted to real
+        if (entry.type === Token.INTCONST) break;
+        if (entry.type === Token.INT) break;
+
+        console.error(`Expected real, got ${typeToString(entry.type)}`)
+        break;
+    default:
         break;
     }
-    case Token.INT: {
-        console.error(`Expected integer, got ${entry.type}`)
+}
+
+/**
+ * Only use with REAL, REALCONST, INT, INTCONST, TRUE and FALSE
+ * @param {Token} token
+ * @returns {String}
+ */
+function typeToString(token) {
+    switch(token) {
+    case Token.REAL:
+    case Token.REALCONST:
+        return "real";
+    case Token.INT:
+    case Token.INTCONST:
+        return "integer";
+    case Token.TRUE:
+    case Token.FALSE:
+        return "boolean";
+    default:
         break;
     }
-    case Token.REAL: {
-        console.error(`Expected real, got ${entry.type}`)
-        break;
-    }
-    default: {}
-    }
+
+    return "";
 }
 
 /**
  * @param {ProcCallAstNode} procCall
  */
 function handleProcedureCall(procCall) {
-    const entry = scope.get(expr.symbol.lexeme);
+    const entry = scope.get(procCall.symbol.lexeme);
+
+    if (!entry.args) entry.args = [];
+    if (!procCall.args) procCall.args = [];
+
     const expectedArgSize = entry.args.length;
     const actualArgSize = procCall.args.length;
 
     if (actualArgSize < expectedArgSize) {
-        console.error(`Too little arguments received, expected ${expectedArgSize}`);
+        console.error(`Received too little arguments (${actualArgSize}), expected ${expectedArgSize}`);
     } else if (actualArgSize > expectedArgSize) {
-        console.error(`Too much arguments received, expected ${actualArgSize}`);
+        console.error(`Received too much arguments (${actualArgSize}), expected ${expectedArgSize}`);
     }
 
-    const min = min(expectedArgSize, actualArgSize);
+    const min = Math.min(expectedArgSize, actualArgSize);
 
-    // handle actual args here until we reach the desired amount
-    // or until the args provided end
+    /**
+     * handle actual args here until we reach the desired amount
+     * or until the provided args end
+    */
     for (let i = 0; i < min; ++i) {
         const expr = procCall.args[i];
         handleExpression(expr, entry.args[i]);
@@ -308,11 +350,11 @@ function handleVariableDeclarations(vardecl) {
     const declarations = vardecl.declarations
 
     for (let declaration of declarations) {
-        const vartype = declaration.type;
+        const vartype = declaration.type.type;
 
         for (let id of declaration.ids) {
             if (scope.hasCurr(id.lexeme)) {
-                console.error("Another variable already declared with this ID:", id.lexeme);
+                console.error(`Variable '${id.lexeme}' already declared`);
                 continue;
             }
 
@@ -325,6 +367,13 @@ function handleVariableDeclarations(vardecl) {
  * @param {ProgramAstNode} procedure
  */
 function handleProcedure(procedure) {
+    const lexeme = procedure.id.lexeme;
+    if (scope.hasCurr(lexeme)) {
+        console.error(`name '${lexeme} already in use.'`)
+    } else {
+        scope.set(lexeme, new ScopeEntry(Token.PROCEDURE, procedure.args))
+    }
+
     scope.addNewScope();
 
     // handle here

@@ -5,7 +5,7 @@ const semantic = require("./semantic.js")
 const util = require('util');
 
 function main() {
-    const filepath = "./instances/math.pas";
+    const filepath = "./instances/teste.pas";
     const tokens = lexer(filepath);
     // TODO: better printer
     //console.log(tokens);
