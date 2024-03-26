@@ -19,7 +19,7 @@ procedure proc1;
     end;
 begin
     a := 10;
-    b := a;
+    b := a * 10.; {expected integer, got real}
     b := w; {expected integer, got real}
     c := 1.; {expected integer, got real}
     d := 1;
@@ -41,6 +41,6 @@ begin
 
     teste := false; {can't assign to program}
     proc1 := true; {assign to procedure here}
-    proc1(1);
+    proc1(true + 1); {too much arguments}
     a := proc1 {procedures do not return values}
 end.

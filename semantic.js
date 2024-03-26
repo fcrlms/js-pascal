@@ -80,15 +80,19 @@ class Scopes {
 
 /**
  * TODO: track variables use and initialization for better errors
+ * TODO: return info about what scope the variable is
  */
 class ScopeEntry {
     /**
      * @param {Token} type
-     * @param {Array<>} args
+     * @param {Array<Token>} args
      */
     constructor(type, args = undefined) {
         this.type = type;
         this.args = args;
+
+        this.wasInitialized; // TODO: do only when in the same scope
+        this.wasUsed; // TODO: check when closing scope
     }
 
     /**
@@ -117,7 +121,10 @@ const scope = new Scopes();
  * @param {ProgramAstNode} ast
  */
 module.exports = semantic = (ast) => {
-    scope.set(ast.id.lexeme, new ScopeEntry(Token.PROGRAM));
+    const entry = new ScopeEntry(Token.PROGRAM);
+    entry.wasInitialized = true;
+    entry.wasUsed = true;
+    scope.set(ast.id.lexeme, entry);
 
     if (ast.vardecl) {
         handleVariableDeclarations(ast.vardecl);
@@ -156,6 +163,11 @@ function handleCommand(command) {
                 console.error(`Cannot assign to program.`);
             } else {
                 vartype = entry.type; // only expect type on a valid assignment
+            }
+
+            if (scope.hasCurr(command.id.lexeme)) {
+                entry.wasInitialized = true;
+                scope.set(command.id.lexeme, entry);
             }
         } else {
             console.error(`${command.id.lexeme} was not declared`);
@@ -217,6 +229,15 @@ function handleExpression (expr, expectedType = undefined) {
             return;
         }
 
+        if (scope.hasCurr(expr.symbol.lexeme)) {
+            entry.wasUsed = true;
+            scope.set(expr.symbol.lexeme, entry);
+
+            if (!entry.wasInitialized) {
+                console.error(`Variable ${expr.symbol.lexeme} was not initialized.`);
+            }
+        }
+
         if (entry.isOfType(Token.PROCEDURE)) {
             console.error(`Procedures do not have return value.`);
             handleProcedureCall(expr);
@@ -245,10 +266,46 @@ function handleExpression (expr, expectedType = undefined) {
             }
 
             handleExpression(expr, expectedType);
+        } else if (expr.symbol.type === Token.NOT) {
+            if (expectedType && expectedType !== Token.BOOLEAN) {
+                console.error(`Expected '${typeToString(expectedType)}' but got 'boolean' instead.`);
+            }
+
+            handleExpression(expr.child, Token.BOOLEAN);
+        } else { // SUMOP and SUBOP
+            if (expectedType && expectedType === Token.BOOLEAN) {
+                console.error(`Expected 'boolean' but got 'number' instead.`);
+                handleExpression(expr.child, Token.REAL);
+            } else {
+                handleExpression(expr.child, expectedType || Token.REAL);
+            }
         }
     }
     else if (expr instanceof BinaryAstNode) {
-        // TODO
+        if (isRelation(expr.symbol) || isLogical(expr.symbol)) {
+            if (expectedType && expectedType !== Token.BOOLEAN) {
+                console.error(`Expected '${typeToString(expectedType)}' but got 'boolean' instead.`);
+            }
+
+            if (isLogical(expr.symbol)) {
+                expectedType = Token.BOOLEAN;
+            } else {
+                expectedType = undefined;
+            }
+
+            handleExpression(expr.left, expectedType);
+            handleExpression(expr.right, expectedType);
+        } else { // all math operations
+            // TODO: handle division by 0?
+
+            if (expectedType && expectedType === Token.BOOLEAN) {
+                console.error(`Expected 'boolean' but got 'number' instead.`);
+                expectedType = Token.REAL;
+            }
+
+            handleExpression(expr.left, expectedType || Token.REAL);
+            handleExpression(expr.right, expectedType || Token.REAL);
+        }
     }
 }
 
@@ -288,7 +345,7 @@ function compareTypes(expectedType, entry) {
 }
 
 /**
- * Only use with REAL, REALCONST, INT, INTCONST, TRUE and FALSE
+ * Only use with REAL, REALCONST, INT, INTCONST, TRUE, FALSE and BOOLEAN
  * @param {Token} token
  * @returns {String}
  */
@@ -302,6 +359,7 @@ function typeToString(token) {
         return "integer";
     case Token.TRUE:
     case Token.FALSE:
+    case Token.BOOLEAN:
         return "boolean";
     default:
         break;
@@ -374,12 +432,40 @@ function handleProcedure(procedure) {
     if (scope.hasCurr(lexeme)) {
         console.error(`name '${lexeme} already in use.'`)
     } else {
-        scope.set(lexeme, new ScopeEntry(Token.PROCEDURE, procedure.args))
+        let args = [];
+
+        if (procedure.args) {
+            for (let decl of procedure.args.declarations) {
+                const decltype = decl.type;
+
+                for (let i = 0; i < decl.ids.length; ++i) {
+                    args.push(decltype.type);
+                }
+            }
+        }
+
+        const entry = new ScopeEntry(Token.PROCEDURE, args);
+        entry.wasInitialized = true;
+        scope.set(lexeme, entry)
     }
 
     scope.addNewScope();
 
-    // handle here
+    if (procedure.args) {
+        handleVariableDeclarations(procedure.args);
+    }
+
+    if (procedure.vardecl) {
+        handleVariableDeclarations(procedure.vardecl);
+    }
+
+    if (procedure.subprogram) {
+        for (let subprogram of procedure.subprogram) {
+            handleProcedure(subprogram);
+        }
+    }
+
+    handleCommandBlock(procedure.body);
 
     scope.removeScope();
 }
