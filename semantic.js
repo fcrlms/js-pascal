@@ -121,16 +121,6 @@ class ScopeEntry {
     isOfType(token) {
         return this.type === token;
     }
-
-    /**
-     * returns true if the symbols have the same type
-     * @param {ScopeEntry} entry1
-     * @param {ScopeEntry} entry2
-     * @returns {Boolean}
-     */
-    static haveSameType(entry1, entry2) {
-        return entry1.type === entry2.type;
-    }
 }
 
 const scope = new Scopes();
@@ -273,6 +263,107 @@ function handleCommand(command) {
         }
 
         handleProcedureCall(command);
+    }
+}
+
+/**
+ * @param {ProcCallAstNode} procCall
+ */
+function handleProcedureCall(procCall) {
+    const entry = scope.get(procCall.symbol.lexeme);
+
+    if (!entry.args) entry.args = [];
+    if (!procCall.args) procCall.args = [];
+
+    const expectedArgSize = entry.args.length;
+    const actualArgSize = procCall.args.length;
+
+    if (actualArgSize < expectedArgSize) {
+        console.error(`Received too little arguments (${actualArgSize}), expected ${expectedArgSize}`);
+    } else if (actualArgSize > expectedArgSize) {
+        console.error(`Received too much arguments (${actualArgSize}), expected ${expectedArgSize}`);
+    }
+
+    const min = Math.min(expectedArgSize, actualArgSize);
+
+    /**
+     * handle actual args here until we reach the desired amount
+     * or until the provided args end
+    */
+    for (let i = 0; i < min; ++i) {
+        const expr = procCall.args[i];
+        handleExpression(expr, entry.args[i]);
+    }
+
+    // handle extra arguments here but expect no value
+    for (let i = min; i < actualArgSize; ++i) {
+        const expr = procCall.args[i];
+        handleExpression(expr);
+    }
+}
+
+/**
+ * @param {ProgramAstNode} procedure
+ */
+function handleProcedure(procedure) {
+    const lexeme = procedure.id.lexeme;
+    if (scope.hasCurr(lexeme)) {
+        console.error(`name '${lexeme} already in use.'`)
+    } else {
+        let args = [];
+
+        if (procedure.args) {
+            for (let decl of procedure.args.declarations) {
+                const decltype = decl.type;
+
+                for (let i = 0; i < decl.ids.length; ++i) {
+                    args.push(decltype.type);
+                }
+            }
+        }
+
+        const entry = new ScopeEntry(Token.PROCEDURE, args);
+        entry.wasInitialized = true;
+        scope.set(lexeme, entry)
+    }
+
+    scope.addNewScope();
+
+    if (procedure.args) {
+        handleVariableDeclarations(procedure.args);
+    }
+
+    if (procedure.vardecl) {
+        handleVariableDeclarations(procedure.vardecl);
+    }
+
+    if (procedure.subprogram) {
+        for (let subprogram of procedure.subprogram) {
+            handleProcedure(subprogram);
+        }
+    }
+
+    handleCommandBlock(procedure.body);
+    scope.removeScope();
+}
+
+/**
+ * @param {VarDeclAstNode} vardecl
+ */
+function handleVariableDeclarations(vardecl) {
+    const declarations = vardecl.declarations
+
+    for (let declaration of declarations) {
+        const vartype = declaration.type.type;
+
+        for (let id of declaration.ids) {
+            if (scope.hasCurr(id.lexeme)) {
+                console.error(`Variable '${id.lexeme}' already declared`);
+                continue;
+            }
+
+            scope.set(id.lexeme, new ScopeEntry(vartype));
+        }
     }
 }
 
@@ -427,107 +518,6 @@ function typeToString(token) {
     }
 
     return "";
-}
-
-/**
- * @param {ProcCallAstNode} procCall
- */
-function handleProcedureCall(procCall) {
-    const entry = scope.get(procCall.symbol.lexeme);
-
-    if (!entry.args) entry.args = [];
-    if (!procCall.args) procCall.args = [];
-
-    const expectedArgSize = entry.args.length;
-    const actualArgSize = procCall.args.length;
-
-    if (actualArgSize < expectedArgSize) {
-        console.error(`Received too little arguments (${actualArgSize}), expected ${expectedArgSize}`);
-    } else if (actualArgSize > expectedArgSize) {
-        console.error(`Received too much arguments (${actualArgSize}), expected ${expectedArgSize}`);
-    }
-
-    const min = Math.min(expectedArgSize, actualArgSize);
-
-    /**
-     * handle actual args here until we reach the desired amount
-     * or until the provided args end
-    */
-    for (let i = 0; i < min; ++i) {
-        const expr = procCall.args[i];
-        handleExpression(expr, entry.args[i]);
-    }
-
-    // handle extra arguments here but expect no value
-    for (let i = min; i < actualArgSize; ++i) {
-        const expr = procCall.args[i];
-        handleExpression(expr);
-    }
-}
-
-/**
- * @param {VarDeclAstNode} vardecl
- */
-function handleVariableDeclarations(vardecl) {
-    const declarations = vardecl.declarations
-
-    for (let declaration of declarations) {
-        const vartype = declaration.type.type;
-
-        for (let id of declaration.ids) {
-            if (scope.hasCurr(id.lexeme)) {
-                console.error(`Variable '${id.lexeme}' already declared`);
-                continue;
-            }
-
-            scope.set(id.lexeme, new ScopeEntry(vartype));
-        }
-    }
-}
-
-/**
- * @param {ProgramAstNode} procedure
- */
-function handleProcedure(procedure) {
-    const lexeme = procedure.id.lexeme;
-    if (scope.hasCurr(lexeme)) {
-        console.error(`name '${lexeme} already in use.'`)
-    } else {
-        let args = [];
-
-        if (procedure.args) {
-            for (let decl of procedure.args.declarations) {
-                const decltype = decl.type;
-
-                for (let i = 0; i < decl.ids.length; ++i) {
-                    args.push(decltype.type);
-                }
-            }
-        }
-
-        const entry = new ScopeEntry(Token.PROCEDURE, args);
-        entry.wasInitialized = true;
-        scope.set(lexeme, entry)
-    }
-
-    scope.addNewScope();
-
-    if (procedure.args) {
-        handleVariableDeclarations(procedure.args);
-    }
-
-    if (procedure.vardecl) {
-        handleVariableDeclarations(procedure.vardecl);
-    }
-
-    if (procedure.subprogram) {
-        for (let subprogram of procedure.subprogram) {
-            handleProcedure(subprogram);
-        }
-    }
-
-    handleCommandBlock(procedure.body);
-    scope.removeScope();
 }
 
 /**
