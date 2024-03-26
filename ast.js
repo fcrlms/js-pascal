@@ -38,7 +38,7 @@ class AssignAstNode {
 class ForAstNode {
     constructor(symbol, assignment, targetexpr, body) {
         this.symbol = symbol;
-        this. assingment = assignment;
+        this. assignment = assignment;
         this.targetexpr = targetexpr;
         this.body = body;
     }
