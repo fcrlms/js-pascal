@@ -78,6 +78,9 @@ class Scopes {
     }
 }
 
+/**
+ * TODO: track variables use and initialization for better errors
+ */
 class ScopeEntry {
     /**
      * @param {Token} type

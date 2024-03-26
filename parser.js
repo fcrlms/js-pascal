@@ -302,6 +302,10 @@ function mult_subprograms() {
         procedures.push(
             new ProgramAstNode(symbol, id, args, vardecl, subprograms, body)
         );
+
+        if (!parser.match(Token.SEMICOLON)) {
+            parser.warn(parser.peek(), "Expected ';' after procedure end.");
+        }
     }
 
     return procedures;

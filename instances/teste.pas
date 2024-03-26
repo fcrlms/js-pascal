@@ -16,7 +16,7 @@ procedure proc1;
         teste, proc1: real; {already declared}
     begin
         c := 10
-    end
+    end;
 begin
     a := 10;
     b := a;
