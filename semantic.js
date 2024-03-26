@@ -1,37 +1,62 @@
-const { AssignAstNode, IfAstNode, UnaryAstNode, WhileAstNode, ForAstNode } = require("./ast");
-const { Token } = require("./utils");
-
-// Manel fazer coisas aqui
+const { AssignAstNode, IfAstNode, UnaryAstNode, WhileAstNode, ForAstNode, ProgramAstNode } = require("./ast");
+const { Token, Symbol } = require("./utils");
 
 class Scopes {
     constructor() {
         this.globalScope = new Map();
-        this.stack = [
-            new Map()
-        ]
+        /** @private @type {Array<Map>} */
+        this.stack = []
     }
 
+    /**
+     * @param {String} key
+     * @returns {Boolean}
+     */
     has(key) {
-        for (let scope of this.stack) { // FINGE QUE É DESEMPILHAR STACK
+        for (let i = this.stack.length -1; i >= 0; i--) {
+            const scope = this.stack[i];
             if (scope.has(key)) return true;
         }
 
         return this.globalScope.has(key);
     }
 
+    /**
+     * Only checks the current scope
+     * @param {String} key
+     */
+    hasCurr(key) {
+        // get closest scope on the stack
+        if (this.stack.length) {
+            const index = this.stack.length -1;
+            return this.stack[index];
+        }
+
+        // else use the global scope
+        return this.globalScope.has(key);
+    }
+
+    /**
+     * @param {String} key
+     * @returns {*}
+     */
     get (key) {
-        for (let scope of this.stack) {
-            if (scope.has(key)) {
-                return scope.get(key);
-            }
+        for (let i = this.stack.length -1; i >= 0; i--) {
+            const scope = this.stack[i];
+            if (scope.has(key)) return scope.get(key);
         }
 
         return this.globalScope.get(key);
     }
 
+    /**
+     * @param {String} key
+     * @param {*} value
+     */
     set(key, value) {
         if (this.stack.length) {
-            const scope = this.stack.pop();
+            const index = this.stack.length -1;
+            const scope = this.stack[index];
 
             scope.set(key, value);
         } else {
@@ -40,19 +65,21 @@ class Scopes {
     }
 
     addNewScope() {
-        this.stack.append(new Map())
+        this.stack.push(new Map())
     }
 
     removeScope() {
-        this.stack.pop()
+        this.stack.splice(this.stack.length - 1, 1);
     }
 }
 
-const globalScope = new Map();
+const scope = new Scopes();
 
+/**
+ * @param {ProgramAstNode} ast
+ */
 module.exports = semantic = (ast) => {
-
-    globalScope.set(ast.id.lexeme, ast.id);
+    scope.set(ast.id.lexeme, ast.id);
 
     if (ast.vardecl) {
         const declarations = ast.vardecl.declarations
@@ -61,12 +88,12 @@ module.exports = semantic = (ast) => {
             const vartype = declaration.type;
 
             for (let id of declaration.ids) {
-                if (globalScope.has(id.lexeme)) {
+                if (scope.has(id.lexeme)) {
                     console.log("Another variable already declared with this ID:", id.lexeme)
                     continue;
                 }
 
-                globalScope.set(id.lexeme, vartype);
+                scope.set(id.lexeme, vartype);
             }
         }
     }
@@ -74,7 +101,7 @@ module.exports = semantic = (ast) => {
     //if (ast.subprogram) {
     //  recursao
     //}
-    // for qtdArgs globalScope.set(args)
+    // for qtdArgs scope.set(args)
 
     if (ast.body) {
 
@@ -82,7 +109,7 @@ module.exports = semantic = (ast) => {
 
             if (command instanceof AssignAstNode) {
 
-                const vartype = globalScope.get(command.id.lexeme);
+                const vartype = scope.get(command.id.lexeme);
 
                 if (vartype) {
 
@@ -103,7 +130,7 @@ module.exports = semantic = (ast) => {
                     if (command.symbol.type = Token.REAL) {
                         //mesmo do int
                     }
-                    
+
 
                 } else {
                     console.log (command.id.lexeme, " wasn't declared");
@@ -114,7 +141,7 @@ module.exports = semantic = (ast) => {
             if (command instanceof IfAstNode) {
 
                 if (command.expr instanceof BinaryAstNode) {
-                    
+
                     if (!isRelation(command.expr.symbol)) {
                         console.log("not relational expression");
                     }
@@ -149,11 +176,23 @@ module.exports = semantic = (ast) => {
 
 };
 
-function isRelation(symbol) { //LEMBRAR DE VER OR E AND
-    return symbol.type === Token.GREATER || 
-    symbol.type === Token.GREATEREQ || 
-    symbol.type === Token.LESS || 
-    symbol.type === Token.LESSEQ || 
-    symbol.type === Token.EQUALS || 
-    symbol.type === Token.NOTEQUALS
+/**
+ * @param {Symbol} symbol
+ * @returns {Boolean}
+ */
+function isRelation(symbol) {
+    return symbol.type === Token.GREATER
+        || symbol.type === Token.GREATEREQ
+        || symbol.type === Token.LESS
+        || symbol.type === Token.LESSEQ
+        || symbol.type === Token.EQUALS
+        || symbol.type === Token.NOTEQUALS
 };
+
+/**
+ * @param {Symbol} symbol
+ * @returns {Boolean}
+ */
+function isLogical(symbol) {
+    return symbol.type === Token.OR || symbol.type === Token.AND;
+}
