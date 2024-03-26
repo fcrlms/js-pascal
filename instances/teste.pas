@@ -15,7 +15,13 @@ procedure proc1;
         a, w, i: integer; {variables already declared}
         teste, proc1: real; {already declared}
     begin
-        c := 10
+        c := 10;
+        for a := 0 to true do {error expected integer got true}
+        begin
+        end;
+        for d := 0 to 1 do {variable must be from local scope}
+        begin
+        end
     end;
 begin
     a := 10;
@@ -42,5 +48,6 @@ begin
     teste := false; {can't assign to program}
     proc1 := true; {assign to procedure here}
     proc1(true + 1); {too much arguments}
-    a := proc1 {procedures do not return values}
+    a := proc1; {procedures do not return values}
+    a
 end.

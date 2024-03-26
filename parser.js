@@ -279,7 +279,7 @@ function mult_subprograms() {
         let vardecl;
         if (parser.match(Token.VAR)) {
             try {
-                var_node = var_decl();
+                vardecl = var_decl();
             } catch (e) {
                 console.error(e.message);
             }

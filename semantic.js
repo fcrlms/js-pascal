@@ -69,6 +69,24 @@ class Scopes {
         }
     }
 
+    /**
+     * sets key and value to the first scope that has key
+     * supposes that key exists in some scope
+     * @param {String} key
+     * @param {ScopeEntry} value
+     */
+    findAndSet(key, value) {
+        for (let i = this.stack.length -1; i >= 0; i--) {
+            const scope = this.stack[i];
+            if (scope.has(key)) {
+                scope.set(key, value);
+                return;
+            }
+        }
+
+        this.globalScope.set(key, value);
+    }
+
     addNewScope() {
         this.stack.push(new Map())
     }
@@ -176,28 +194,71 @@ function handleCommand(command) {
         // TODO: better warning for assignment type mismatch
         handleExpression(command.expr, vartype);
     } else if (command instanceof IfAstNode) {
-        if (command.expr instanceof BinaryAstNode) {
+        // TODO: better error here
+        handleExpression(command.expr, Token.BOOLEAN);
 
-            if (!isRelation(command.expr.symbol)) {
-                console.error("not relational expression");
-            }
-
+        if (command.body instanceof CmdBlockAstNode) {
+            handleCommandBlock(command.body);
         } else {
+            handleCommand(command.body);
+        }
 
-            if (command.expr instanceof UnaryAstNode) {
-                //NOT TODO
-                if (!isRelation(command.expr.symbol)) {
-                    console.error("not relational expression");
-                }
+        if (!command.elseBranch) return;
 
-            } else {
-                console.error("reclamar");//caso n precise do proc
-            }
+        if (command.elseBranch instanceof CmdBlockAstNode) {
+            handleCommandBlock(command.elseBranch);
+        } else {
+            handleCommand(command.elseBranch);
         }
     } else if (command instanceof WhileAstNode) {
-        //igual ao if? fazer funcao?
+        handleExpression(command.expr, Token.BOOLEAN);
+
+        if (command.body instanceof CmdBlockAstNode) {
+            handleCommandBlock(command.body);
+        } else {
+            handleCommand(command.body);
+        }
     } else if (command instanceof ForAstNode) {
-        // num sei
+        {
+            /* variable must be an integer and
+               must be declared in the current scope */
+            const assignment = command.assignment
+            const entry = scope.get(assignment.id.lexeme);
+
+            let vartype = undefined;
+            if (entry) {
+                if (entry.type === Token.PROCEDURE) {
+                    console.error(`Cannot assign to procedure.`);
+                } else if (entry.type === Token.PROGRAM) {
+                    console.error(`Cannot assign to program.`);
+                } else if (entry.type !== Token.INT) {
+                    console.error(`'for' control variable must be integer.`);
+                } else {
+                    vartype = entry.type; // is integer
+                }
+
+                if (scope.hasCurr(assignment.id.lexeme)) {
+                    entry.wasInitialized = true;
+                    scope.set(assignment.id.lexeme, entry);
+                } else {
+                    console.error(`'for' control variable must be declared in the local scope.`);
+                }
+            } else {
+                console.error(`${assignment.id.lexeme} was not declared`);
+            }
+
+            // TODO: better warning for assignment type mismatch
+            handleExpression(command.expr, vartype);
+        }
+
+        // 'for' target expression must be integer (???)
+        handleExpression(command.targetexpr, Token.INT);
+
+        if (command.body instanceof CmdBlockAstNode) {
+            handleCommandBlock(command.body);
+        } else {
+            handleCommand(command.body);
+        }
     } else if (command instanceof ProcCallAstNode) {
         const entry = scope.get(command.symbol.lexeme);
 
@@ -219,7 +280,7 @@ function handleCommand(command) {
 
 /**
  * @param {(BinaryAstNode | UnaryAstNode | ProcCallAstNode | NumAstNode)} expr
- * @param {Token} expectedType
+ * @param {(Token | undefined)} expectedType
  */
 function handleExpression (expr, expectedType = undefined) {
     if (expr instanceof ProcCallAstNode) {
@@ -230,13 +291,13 @@ function handleExpression (expr, expectedType = undefined) {
         }
 
         if (scope.hasCurr(expr.symbol.lexeme)) {
-            entry.wasUsed = true;
-            scope.set(expr.symbol.lexeme, entry);
-
             if (!entry.wasInitialized) {
                 console.error(`Variable ${expr.symbol.lexeme} was not initialized.`);
             }
         }
+
+        entry.wasUsed = true;
+        scope.findAndSet(expr.symbol.lexeme, entry);
 
         if (entry.isOfType(Token.PROCEDURE)) {
             console.error(`Procedures do not have return value.`);
@@ -466,7 +527,6 @@ function handleProcedure(procedure) {
     }
 
     handleCommandBlock(procedure.body);
-
     scope.removeScope();
 }
 
