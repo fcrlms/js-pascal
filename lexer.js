@@ -204,10 +204,14 @@ module.exports = lexer = (filepath) => {
             symbol = new Symbol(Token.RPAREN, lexeme, start_pos);
             break;
         default:
-            symbol = new Symbol(Token.OTHER, lexeme, start_pos);
+            console.error(
+                `${filepath}:${start_pos.line}:${start_pos.col}: ` +
+                `Unrecognized symbol: '${lexeme}'.`
+            );
+            // symbol = new Symbol(Token.OTHER, lexeme, start_pos);
         }
 
-        symbol_arr.push(symbol);
+        if (symbol) symbol_arr.push(symbol);
         pos.col++;
         charstream.next();
 
