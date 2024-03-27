@@ -293,7 +293,7 @@ function handleCommand(command) {
             }
 
             // TODO: better warning for assignment type mismatch
-            handleExpression(command.expr, vartype);
+            handleExpression(assignment.expr, vartype);
         }
 
         // 'for' target expression must be integer (???)

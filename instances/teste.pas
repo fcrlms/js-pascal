@@ -8,20 +8,27 @@ var
     teste: real; {already declared}
 procedure proc1;
     var
-        a, b, c: integer;
-        w, x, y: real;
-        i, j, k: boolean;
+        a, c: integer;
 
-        a, w, i: integer; {variables already declared}
+        w, i: integer; {never used}
+        a: integer; {variable 'a' already declared}
         teste, proc1: real; {already declared}
     begin
         c := 10;
-        for a := 0 to true do {error expected integer got true}
-        begin
-        end;
+        for a := 0. to true do {error expected integer got true}
+            for c := 10 downto 0 do
+                if (c > a) then
+                begin
+                    z := c - a
+                end;
         for d := 0 to 1 do {variable must be from local scope}
         begin
-        end
+        end;
+
+        if (a or c) then
+        begin end;
+        if (a > c) or (c < 10) then
+        begin end
     end;
 begin
     a := 10;
