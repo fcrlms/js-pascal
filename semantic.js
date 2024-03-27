@@ -3,7 +3,7 @@ const {
     ForAstNode, ProgramAstNode, VarDeclAstNode, CmdBlockAstNode,
     ProcCallAstNode, BinaryAstNode, NumAstNode
 } = require("./ast");
-const { Token, Symbol } = require("./utils");
+const { Token, Symbol, Position } = require("./utils");
 
 class Scopes {
     constructor() {
@@ -92,25 +92,31 @@ class Scopes {
     }
 
     removeScope() {
+        const scope = this.stack[this.stack.length - 1];
+
+        for (let [key, value] of scope) {
+            if (value.wasUsed) continue;
+
+            logger.error(value.symbol, `Variable '${key}' was never used.`);
+        }
+
         this.stack.splice(this.stack.length - 1, 1);
     }
 }
 
-/**
- * TODO: track variables use and initialization for better errors
- * TODO: return info about what scope the variable is
- */
 class ScopeEntry {
     /**
+     * @param {Symbol} symbol
      * @param {Token} type
      * @param {Array<Token>} args
      */
-    constructor(type, args = undefined) {
-        this.type = type;
+    constructor(symbol, type, args = undefined) {
+        this.symbol = symbol;
+        this.symbol.type = type;
         this.args = args;
 
-        this.wasInitialized; // TODO: do only when in the same scope
-        this.wasUsed; // TODO: check when closing scope
+        this.wasInitialized;
+        this.wasUsed;
     }
 
     /**
@@ -119,17 +125,64 @@ class ScopeEntry {
      * @returns {Boolean}
      */
     isOfType(token) {
-        return this.type === token;
+        return this.symbol.type === token;
+    }
+}
+
+class Logger {
+    constructor() {
+        this.filepath = "";
+
+        // sort later then print
+        this.errors = [];
+    }
+
+    /**
+     * @param {Position} position
+     * @returns
+     */
+    getPrefix(position) {
+        return `${this.filepath}:${position.line}:${position.col}: `;
+    }
+
+    /**
+     * @param {Symbol} symbol
+     * @param {String} errorMsg
+     */
+    error(symbol, errorMsg) {
+        this.errors.push({
+            pos: symbol.pos,
+            msg: this.getPrefix(symbol.pos) + errorMsg,
+        })
+    }
+
+    sortErrors() {
+        this.errors.sort((a, b) => {
+            return a.pos.col - b.pos.col
+        }).sort((a, b) => {
+            return a.pos.line - b.pos.line
+        });
+    }
+
+    printAll() {
+        this.sortErrors();
+
+        for (let err of this.errors) {
+            console.error(err.msg);
+        }
     }
 }
 
 const scope = new Scopes();
+const logger = new Logger();
 
 /**
  * @param {ProgramAstNode} ast
  */
-module.exports = semantic = (ast) => {
-    const entry = new ScopeEntry(Token.PROGRAM);
+module.exports = semantic = (ast, filepath) => {
+    logger.filepath = filepath;
+
+    const entry = new ScopeEntry(ast.id, Token.PROGRAM);
     entry.wasInitialized = true;
     entry.wasUsed = true;
     scope.set(ast.id.lexeme, entry);
@@ -145,6 +198,8 @@ module.exports = semantic = (ast) => {
     }
 
     handleCommandBlock(ast.body);
+
+    logger.printAll();
 };
 
 /**
@@ -165,12 +220,12 @@ function handleCommand(command) {
 
         let vartype = undefined;
         if (entry) {
-            if (entry.type === Token.PROCEDURE) {
-                console.error(`Cannot assign to procedure.`);
-            } else if (entry.type === Token.PROGRAM) {
-                console.error(`Cannot assign to program.`);
+            if (entry.isOfType(Token.PROCEDURE)) {
+                logger.error(command.symbol, `Cannot assign to procedure.`);
+            } else if (entry.isOfType(Token.PROGRAM)) {
+                logger.error(command.symbol, `Cannot assign to program.`);
             } else {
-                vartype = entry.type; // only expect type on a valid assignment
+                vartype = entry.symbol.type; // only expect type on a valid assignment
             }
 
             if (scope.hasCurr(command.id.lexeme)) {
@@ -178,7 +233,7 @@ function handleCommand(command) {
                 scope.set(command.id.lexeme, entry);
             }
         } else {
-            console.error(`${command.id.lexeme} was not declared`);
+            logger.error(command.id, `${command.id.lexeme} was not declared`);
         }
 
         // TODO: better warning for assignment type mismatch
@@ -217,24 +272,24 @@ function handleCommand(command) {
 
             let vartype = undefined;
             if (entry) {
-                if (entry.type === Token.PROCEDURE) {
-                    console.error(`Cannot assign to procedure.`);
-                } else if (entry.type === Token.PROGRAM) {
-                    console.error(`Cannot assign to program.`);
-                } else if (entry.type !== Token.INT) {
-                    console.error(`'for' control variable must be integer.`);
+                if (entry.isOfType(Token.PROCEDURE)) {
+                    logger.error(assignment.symbol, `Cannot assign to procedure.`);
+                } else if (entry.isOfType(Token.PROGRAM)) {
+                    logger.error(assignment.symbol, `Cannot assign to program.`);
+                } else if (!entry.isOfType(Token.INT)) {
+                    logger.error(assignment.id, `'for' control variable must be integer.`);
                 } else {
-                    vartype = entry.type; // is integer
+                    vartype = entry.symbol.type; // is integer
                 }
 
                 if (scope.hasCurr(assignment.id.lexeme)) {
                     entry.wasInitialized = true;
                     scope.set(assignment.id.lexeme, entry);
                 } else {
-                    console.error(`'for' control variable must be declared in the local scope.`);
+                    logger.error(assignment.id, `'for' control variable must be declared in the local scope.`);
                 }
             } else {
-                console.error(`${assignment.id.lexeme} was not declared`);
+                logger.error(assignment.id, `${assignment.id.lexeme} was not declared`);
             }
 
             // TODO: better warning for assignment type mismatch
@@ -253,12 +308,12 @@ function handleCommand(command) {
         const entry = scope.get(command.symbol.lexeme);
 
         if (!entry) {
-            console.error(`'${command.symbol.lexeme}' is not declared.`);
+            logger.error(command.symbol, `'${command.symbol.lexeme}' is not declared.`);
             return;
         }
 
         if (!entry.isOfType(Token.PROCEDURE)) { // is variable
-            console.error(`'${command.symbol.lexeme}' is not a procedure.`);
+            logger.error(command.symbol, `'${command.symbol.lexeme}' is not a procedure.`);
             return;
         }
 
@@ -279,9 +334,11 @@ function handleProcedureCall(procCall) {
     const actualArgSize = procCall.args.length;
 
     if (actualArgSize < expectedArgSize) {
-        console.error(`Received too little arguments (${actualArgSize}), expected ${expectedArgSize}`);
+        logger.error(procCall.symbol,
+            `Received too little arguments (${actualArgSize}), expected ${expectedArgSize}`);
     } else if (actualArgSize > expectedArgSize) {
-        console.error(`Received too much arguments (${actualArgSize}), expected ${expectedArgSize}`);
+        logger.error(procCall.symbol,
+            `Received too much arguments (${actualArgSize}), expected ${expectedArgSize}`);
     }
 
     const min = Math.min(expectedArgSize, actualArgSize);
@@ -308,7 +365,7 @@ function handleProcedureCall(procCall) {
 function handleProcedure(procedure) {
     const lexeme = procedure.id.lexeme;
     if (scope.hasCurr(lexeme)) {
-        console.error(`name '${lexeme} already in use.'`)
+        logger.error(procedure.id, `name '${lexeme} already in use.'`)
     } else {
         let args = [];
 
@@ -322,7 +379,7 @@ function handleProcedure(procedure) {
             }
         }
 
-        const entry = new ScopeEntry(Token.PROCEDURE, args);
+        const entry = new ScopeEntry(procedure.id, Token.PROCEDURE, args);
         entry.wasInitialized = true;
         scope.set(lexeme, entry)
     }
@@ -358,16 +415,14 @@ function handleVariableDeclarations(vardecl) {
 
         for (let id of declaration.ids) {
             if (scope.hasCurr(id.lexeme)) {
-                console.error(`Variable '${id.lexeme}' already declared`);
+                logger.error(id, `Variable '${id.lexeme}' already declared`);
                 continue;
             }
 
-            scope.set(id.lexeme, new ScopeEntry(vartype));
+            scope.set(id.lexeme, new ScopeEntry(id, vartype));
         }
     }
 }
-
-// TODO: create new enum for variable types, less headache
 
 /**
  * @param {(BinaryAstNode | UnaryAstNode | ProcCallAstNode | NumAstNode)} expr
@@ -377,13 +432,13 @@ function handleExpression (expr, expectedType = undefined) {
     if (expr instanceof ProcCallAstNode) {
         const entry = scope.get(expr.symbol.lexeme);
         if (!entry) {
-            console.error(`Variable ${expr.symbol.lexeme} never declared.`);
+            logger.error(expr.symbol, `Variable ${expr.symbol.lexeme} never declared.`);
             return;
         }
 
         if (scope.hasCurr(expr.symbol.lexeme)) {
             if (!entry.wasInitialized) {
-                console.error(`Variable ${expr.symbol.lexeme} was not initialized.`);
+                logger.error(expr.symbol, `Variable ${expr.symbol.lexeme} was not initialized.`);
             }
         }
 
@@ -391,17 +446,18 @@ function handleExpression (expr, expectedType = undefined) {
         scope.findAndSet(expr.symbol.lexeme, entry);
 
         if (entry.isOfType(Token.PROCEDURE)) {
-            console.error(`Procedures do not have return value.`);
+            logger.error(expr.symbol, `Procedures do not have return value.`);
             handleProcedureCall(expr);
             return;
         }
 
         if (expr.args) {
-            console.error(`Variable ${expr.symbol.lexeme} is not a procedure.`);
+            logger.error(expr.symbol, `Variable ${expr.symbol.lexeme} is not a procedure.`);
             return;
         }
 
-        compareTypes(expectedType, entry);
+        expr.symbol.type = entry.symbol.type;
+        compareTypes(expectedType, expr.symbol);
     }
     else if (expr instanceof NumAstNode) {
         compareTypes(expectedType, expr.symbol);
@@ -420,13 +476,14 @@ function handleExpression (expr, expectedType = undefined) {
             handleExpression(expr, expectedType);
         } else if (expr.symbol.type === Token.NOT) {
             if (expectedType && expectedType !== Token.BOOLEAN) {
-                console.error(`Expected '${typeToString(expectedType)}' but got 'boolean' instead.`);
+                logger.error(expr.symbol,
+                    `Expected '${typeToString(expectedType)}' but got 'boolean' instead.`);
             }
 
             handleExpression(expr.child, Token.BOOLEAN);
         } else { // SUMOP and SUBOP
             if (expectedType && expectedType === Token.BOOLEAN) {
-                console.error(`Expected 'boolean' but got 'number' instead.`);
+                logger.error(expr.symbol, `Expected 'boolean' but got 'number' instead.`);
                 handleExpression(expr.child, Token.REAL);
             } else {
                 handleExpression(expr.child, expectedType || Token.REAL);
@@ -436,7 +493,8 @@ function handleExpression (expr, expectedType = undefined) {
     else if (expr instanceof BinaryAstNode) {
         if (isRelation(expr.symbol) || isLogical(expr.symbol)) {
             if (expectedType && expectedType !== Token.BOOLEAN) {
-                console.error(`Expected '${typeToString(expectedType)}' but got 'boolean' instead.`);
+                logger.error(expr.symbol,
+                    `Expected '${typeToString(expectedType)}' but got 'boolean' instead.`);
             }
 
             if (isLogical(expr.symbol)) {
@@ -451,7 +509,8 @@ function handleExpression (expr, expectedType = undefined) {
             // TODO: handle division by 0?
 
             if (expectedType && expectedType === Token.BOOLEAN) {
-                console.error(`Expected 'boolean' but got 'number' instead.`);
+                logger.error(expr.symbol,
+                    `Expected 'boolean' but got 'number' instead.`);
                 expectedType = Token.REAL;
             }
 
@@ -463,33 +522,33 @@ function handleExpression (expr, expectedType = undefined) {
 
 /**
  * @param {Token} expectedType
- * @param {(Symbol | ScopeEntry)} entry
+ * @param {Symbol} symbol
  */
-function compareTypes(expectedType, entry) {
-    if (entry.type === expectedType) {
+function compareTypes(expectedType, symbol) {
+    if (symbol.type === expectedType) {
         return;
     }
 
     switch (expectedType) {
     case Token.BOOLEAN:
-        if (entry.type === Token.TRUE) break;
-        if (entry.type === Token.FALSE) break;
+        if (symbol.type === Token.TRUE) break;
+        if (symbol.type === Token.FALSE) break;
 
-        console.error(`Expected boolean, got ${typeToString(entry.type)}`)
+        logger.error(symbol, `Expected boolean, got ${typeToString(symbol.type)}`)
         break;
     case Token.INT:
-        if (entry.type === Token.INTCONST) break;
+        if (symbol.type === Token.INTCONST) break;
 
-        console.error(`Expected integer, got ${typeToString(entry.type)}`)
+        logger.error(symbol, `Expected integer, got ${typeToString(symbol.type)}`)
         break;
     case Token.REAL:
-        if (entry.type === Token.REALCONST) break;
+        if (symbol.type === Token.REALCONST) break;
 
         // both are promoted to real
-        if (entry.type === Token.INTCONST) break;
-        if (entry.type === Token.INT) break;
+        if (symbol.type === Token.INTCONST) break;
+        if (symbol.type === Token.INT) break;
 
-        console.error(`Expected real, got ${typeToString(entry.type)}`)
+        logger.error(symbol, `Expected real, got ${typeToString(symbol.type)}`)
         break;
     default:
         break;
