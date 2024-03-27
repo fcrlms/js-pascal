@@ -307,17 +307,19 @@ function handleCommand(command) {
     } else if (command instanceof ProcCallAstNode) {
         const entry = scope.get(command.symbol.lexeme);
 
-        if (!entry) {
-            logger.error(command.symbol, `'${command.symbol.lexeme}' is not declared.`);
-            return;
-        }
+        if (entry && entry.isOfType(Token.PROCEDURE)) {
+            handleProcedureCall(command);
+        } else {
+            if (!entry) {
+                logger.error(command.symbol, `'${command.symbol.lexeme}' is not declared.`);
+            } else if (!entry.isOfType(Token.PROCEDURE)) { // is variable
+                logger.error(command.symbol, `'${command.symbol.lexeme}' is not a procedure.`);
+            }
 
-        if (!entry.isOfType(Token.PROCEDURE)) { // is variable
-            logger.error(command.symbol, `'${command.symbol.lexeme}' is not a procedure.`);
-            return;
+            for (let arg of command.args) {
+                handleExpression(arg);
+            }
         }
-
-        handleProcedureCall(command);
     }
 }
 
