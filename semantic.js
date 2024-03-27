@@ -365,7 +365,7 @@ function handleProcedureCall(procCall) {
 function handleProcedure(procedure) {
     const lexeme = procedure.id.lexeme;
     if (scope.hasCurr(lexeme)) {
-        logger.error(procedure.id, `name '${lexeme} already in use.'`)
+        logger.error(procedure.id, `name '${lexeme}' already in use.'`)
     } else {
         let args = [];
 
