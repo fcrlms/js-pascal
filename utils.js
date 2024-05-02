@@ -1,87 +1,90 @@
 const Token = {
-    LPAREN: 0,
-    RPAREN: 1,
-    DOT: 2,
-    SEMICOLON: 3,
-    COLON: 4,
-    COMMA: 5,
+  LPAREN: 0,
+  RPAREN: 1,
+  DOT: 2,
+  SEMICOLON: 3,
+  COLON: 4,
+  COMMA: 5,
 
-    ASSIGN: 6,
+  ASSIGN: 6,
 
-    EQUALS: 7,
-    NOTEQUALS: 8,
-    LESS: 9,
-    LESSEQ: 10,
-    GREATER: 11,
-    GREATEREQ: 12,
+  EQUALS: 7,
+  NOTEQUALS: 8,
+  LESS: 9,
+  LESSEQ: 10,
+  GREATER: 11,
+  GREATEREQ: 12,
 
-    SUMOP: 13,
-    SUBOP: 14,
-    DIVOP: 15,
-    MULTOP: 16,
-    OR: 17,
-    AND: 18,
+  SUMOP: 13,
+  SUBOP: 14,
+  DIVOP: 15,
+  MULTOP: 16,
+  OR: 17,
+  AND: 18,
 
-    INTCONST: 19,
-    REALCONST: 20,
+  INTCONST: 19,
+  REALCONST: 20,
 
-    PROGRAM: 21,
-    VAR: 22,
-    INT: 23,
-    REAL: 24,
-    BOOLEAN: 25,
-    PROCEDURE: 26,
-    BEGIN: 27,
-    END: 28,
-    IF: 29,
-    THEN: 30,
-    ELSE: 31,
-    WHILE: 32,
-    DO: 33,
-    NOT: 34,
+  PROGRAM: 21,
+  VAR: 22,
+  INT: 23,
+  REAL: 24,
+  BOOLEAN: 25,
+  PROCEDURE: 26,
+  BEGIN: 27,
+  END: 28,
+  IF: 29,
+  THEN: 30,
+  ELSE: 31,
+  WHILE: 32,
+  DO: 33,
+  NOT: 34,
 
-    ID: 35,
+  ID: 35,
 
-    WHITESPACE: 36,
+  WHITESPACE: 36,
 
-    TRUE: 37,
-    FALSE: 38,
+  TRUE: 37,
+  FALSE: 38,
 
-    OTHER: 39,
+  OTHER: 39,
 
-    EOF: 40,
-    TO: 41,
-    DOWNTO: 42,
-    FOR: 43,
+  EOF: 40,
+  TO: 41,
+  DOWNTO: 42,
+  FOR: 43,
 };
 
 class Position {
-    /**
-     * @param {Number} line
-     * @param {Number} col
-     */
-    constructor(line, col, jenga) {
-        /** @public @type {Number} */
-        this.col = col;
-        /** @public @type {Number} */
-        this.line = line;
-    }
+  /**
+   * @param {Number} line
+   * @param {Number} col
+   */
+  constructor(line, col) {
+    /** @public @type {Number} */
+    this.col = col;
+    /** @public @type {Number} */
+    this.line = line;
+  }
 }
 
 class Symbol {
-    /**
-     * @param {Token} type
-     * @param {String} lexeme
-     * @param {Position} pos
-     */
-    constructor(type, lexeme, pos) {
-        /** @public @type {Token} */
-        this.type = type;
-        /** @public @type {String} */
-        this.lexeme = lexeme;
-        /** @public @type {Position} */
-        this.pos = new Position(pos.line, pos.col);
-    }
+  /**
+   * @param {Token} type
+   * @param {String} lexeme
+   * @param {Position} pos
+   * @param {Number} offset
+   */
+  constructor(type, lexeme, pos, offset) {
+    /** @public @type {Token} */
+    this.type = type;
+    /** @public @type {String} */
+    this.lexeme = lexeme;
+    /** @public @type {Position} */
+    this.pos = new Position(pos.line, pos.col);
+    /** @public @type {Number} */
+    this.offset = offset;
+  }
 }
 
 /**
@@ -111,8 +114,8 @@ keywordMap.set("downto", Token.DOWNTO);
 keywordMap.set("for", Token.FOR);
 
 module.exports = {
-    Token,
-    Position,
-    Symbol,
-    keywordMap,
+  Token,
+  Position,
+  Symbol,
+  keywordMap,
 };
