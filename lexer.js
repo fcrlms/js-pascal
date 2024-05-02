@@ -62,6 +62,7 @@ module.exports = lexer = (filepath) => {
         }
 
         // handle comment
+        // TODO: create comment node and store whole comment
         if (c === '{') {
             do {
                 pos.col++;

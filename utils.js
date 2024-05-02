@@ -60,7 +60,7 @@ class Position {
      * @param {Number} line
      * @param {Number} col
      */
-    constructor(line, col) {
+    constructor(line, col, jenga) {
         /** @public @type {Number} */
         this.col = col;
         /** @public @type {Number} */

@@ -200,6 +200,8 @@ module.exports = semantic = (ast, filepath) => {
     handleCommandBlock(ast.body);
 
     logger.printAll();
+
+    return ast;
 };
 
 /**
