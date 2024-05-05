@@ -35,6 +35,7 @@ class CharBuffer {
 
   next() {
     this.buffer_pos += 1;
+    this.offset += 1;
 
     if (this.buffer_pos >= this.buffer.length) {
       this.buffer = this.rstream.read();
@@ -46,6 +47,12 @@ class CharBuffer {
     if (this.isFinished()) return null;
 
     return String.fromCharCode(this.buffer[this.buffer_pos]);
+  }
+
+  peek() {
+    if (this.isFinished()) return null;
+    if (this.buffer_pos + 1 >= this.buffer.length) return null;
+    return String.fromCharCode(this.buffer[this.buffer_pos + 1]);
   }
 
   fetchChar() {
@@ -67,6 +74,12 @@ class CharBuffer {
   }
 }
 
+const is_blank = (c) =>
+  c === " " || c === "\t" || c === "\v" || c === "\f" || c === "\r";
+const is_digit = (c) => c >= "0" && c <= "9";
+const is_alpha = (c) => (c >= "A" && c <= "Z") || (c >= "a" && c <= "z");
+const is_alphanum_ = (c) => is_alpha(c) || is_digit(c) || c === "_";
+
 class Lexer {
   constructor(filepath) {
     /** @type {CharBuffer} */
@@ -83,19 +96,11 @@ class Lexer {
 
   /** @private */
   getToken() {
-    const start_position = Object.assign({}, this.pos);
-
-    const curr_char = this.buffer.getCurr();
-
-    if (curr_char === null) {
-      return null;
-    }
-
-    let lexeme = "";
-    let symbol;
-
-    // Loops until a token is produced
+    // skipping chars that don't produce anything
     while (!this.buffer.isFinished()) {
+      const curr_char = this.buffer.getCurr();
+
+      // These may loop until a token is produced
       if (curr_char === "\n") {
         this.pos.col = 1;
         this.pos.line += 1;
@@ -107,95 +112,168 @@ class Lexer {
         continue;
       } else if (curr_char === "}") {
         // TODO: log error, no matching opening comment
+        // also handle when the formatter rewrites
         this.pos.col += 1;
         this.buffer.next();
         continue;
-      } else if (curr_char === "{") {
-        // TODO: handle comments, return symbol with full coment for reconstruction
-        continue;
-      } else if (is_digit(curr_char)) {
-        // TODO: handle number
-        continue;
-      } else if (is_alpha(curr_char)) {
-        // TODO: handle id
-        continue;
       }
-
-      lexeme += curr_char;
-
-      switch (curr_char) {
-        case "+":
-          symbol = new Symbol(Token.SUMOP, lexeme, pos);
-          break;
-        case "-":
-          symbol = new Symbol(Token.SUBOP, lexeme, pos);
-          break;
-        case "*":
-          symbol = new Symbol(Token.MULTOP, lexeme, pos);
-          break;
-        case "/":
-          symbol = new Symbol(Token.DIVOP, lexeme, pos);
-          break;
-        case "=":
-          symbol = new Symbol(Token.EQUALS, lexeme, start_pos);
-          break;
-        case "<":
-          if (this.buffer.peek() === "=") {
-            pos.col += 1;
-            this.buffer.next();
-            lexeme += this.buffer.curr();
-            symbol = new Symbol(Token.LESSEQ, lexeme, start_pos);
-          } else if (this.buffer.peek() === ">") {
-            pos.col += 1;
-            this.buffer.next();
-            lexeme += this.buffer.curr();
-            symbol = new Symbol(Token.NOTEQUALS, lexeme, start_pos);
-          } else {
-            symbol = new Symbol(Token.LESS, lexeme, start_pos);
-          }
-          break;
-        case ">":
-          if (this.buffer.peek() === "=") {
-            pos.col += 1;
-            this.buffer.next();
-            lexeme += this.buffer.curr();
-            symbol = new Symbol(Token.GREATEREQ, lexeme, start_pos);
-          } else {
-            symbol = new Symbol(Token.GREATER, lexeme, start_pos);
-          }
-          break;
-        case ":":
-          if (this.buffer.peek() === "=") {
-            pos.col += 1;
-            this.buffer.next();
-            lexeme += this.buffer.curr();
-            symbol = new Symbol(Token.ASSIGN, lexeme, start_pos);
-          } else {
-            symbol = new Symbol(Token.COLON, lexeme, start_pos);
-          }
-          break;
-        case ";":
-          symbol = new Symbol(Token.SEMICOLON, lexeme, start_pos);
-          break;
-        case ".":
-          symbol = new Symbol(Token.DOT, lexeme, start_pos);
-          break;
-        case ",":
-          symbol = new Symbol(Token.COMMA, lexeme, start_pos);
-          break;
-        case "(":
-          symbol = new Symbol(Token.LPAREN, lexeme, start_pos);
-          break;
-        case ")":
-          symbol = new Symbol(Token.RPAREN, lexeme, start_pos);
-          break;
-        default:
-          // TODO: log error, unrecognized symbol and return the symbol
-          break;
-      }
+      break;
     }
 
-    // TODO: create symbol properly and return it
+    // Could have reached EOF by now
+    if (this.buffer.isFinished()) {
+      return null;
+    }
+
+    const start_position = Object.assign({}, this.pos);
+    const start_offset = this.buffer.offset;
+    const curr_char = this.buffer.getCurr();
+
+    let lexeme = "";
+    let token = Token.OTHER;
+    let symbol = new Symbol(token, lexeme, start_position, start_offset);
+
+    if (curr_char === "{") {
+      do {
+        lexeme += this.buffer.getCurr();
+        this.buffer.next();
+        this.pos.col += 1;
+
+        if (this.buffer.getCurr() === "\n") {
+          this.pos.line += 1;
+          this.pos.col = 0; // next iter increments
+        }
+      } while (this.buffer.getCurr() !== "}" && !this.buffer.isFinished());
+
+      if (this.buffer.isFinished()) {
+        // TODO: log error, comment never closed
+      } else {
+        lexeme += this.buffer.getCurr(); // the closing bracket
+        this.buffer.next();
+        this.pos.col += 1;
+      }
+
+      symbol.lexeme = lexeme;
+      symbol.token = Token.COMMENT;
+      return symbol;
+    } else if (is_digit(curr_char)) {
+      let is_real = false;
+      while (is_digit(this.buffer.getCurr())) {
+        lexeme += this.buffer.getCurr();
+
+        if (this.buffer.peek() === "." && !is_real) {
+          this.buffer.next();
+          this.pos.col += 1;
+
+          lexeme += this.buffer.getCurr();
+
+          is_real = true;
+        }
+
+        this.buffer.next();
+        this.pos.col += 1;
+      }
+
+      const token = is_real ? Token.REALCONST : Token.INTCONST;
+      symbol.token = token;
+      symbol.lexeme = lexeme;
+      return symbol;
+    } else if (is_alpha(curr_char)) {
+      while (is_alphanum_(this.buffer.getCurr())) {
+        lexeme += this.buffer.getCurr();
+        this.buffer.next();
+        this.pos.col += 1;
+      }
+
+      token = Token.ID;
+      if (keywordMap.has(lexeme)) {
+        token = keywordMap.get(lexeme);
+      }
+
+      symbol.token = token;
+      symbol.lexeme = lexeme;
+      return symbol;
+    }
+
+    lexeme = curr_char;
+
+    switch (curr_char) {
+      case "+":
+        token = Token.SUMOP;
+        break;
+      case "-":
+        token = Token.SUBOP;
+        break;
+      case "*":
+        token = Token.MULTOP;
+        break;
+      case "/":
+        token = Token.DIVOP;
+        break;
+      case "=":
+        token = Token.EQUALS;
+        break;
+      case "<":
+        if (this.buffer.peek() === "=") {
+          this.pos.col += 1;
+          this.buffer.next();
+          lexeme += this.buffer.getCurr();
+          token = Token.LESSEQ;
+        } else if (this.buffer.peek() === ">") {
+          this.pos.col += 1;
+          this.buffer.next();
+          lexeme += this.buffer.getCurr();
+          token = Token.NOTEQUALS;
+        } else {
+          token = Token.LESS;
+        }
+        break;
+      case ">":
+        if (this.buffer.peek() === "=") {
+          this.pos.col += 1;
+          this.buffer.next();
+          lexeme += this.buffer.getCurr();
+          token = Token.GREATEREQ;
+        } else {
+          token = Token.GREATER;
+        }
+        break;
+      case ":":
+        if (this.buffer.peek() === "=") {
+          this.pos.col += 1;
+          this.buffer.next();
+          lexeme += this.buffer.getCurr();
+          token = Token.ASSIGN;
+        } else {
+          token = Token.COLON;
+        }
+        break;
+      case ";":
+        token = Token.SEMICOLON;
+        break;
+      case ".":
+        token = Token.DOT;
+        break;
+      case ",":
+        token = Token.COMMA;
+        break;
+      case "(":
+        token = Token.LPAREN;
+        break;
+      case ")":
+        token = Token.RPAREN;
+        break;
+      default:
+        // TODO: log error, unrecognized symbol and return the symbol
+        token = Token.OTHER; // unnecessary but it's nice to remind yourself
+        break;
+    }
+
+    // fixes missing type and lexeme
+    symbol.lexeme = lexeme;
+    symbol.type = token;
+
+    return symbol;
   }
 
   getCurrent() {

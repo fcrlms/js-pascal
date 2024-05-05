@@ -53,6 +53,7 @@ const Token = {
   TO: 41,
   DOWNTO: 42,
   FOR: 43,
+  COMMENT: 44,
 };
 
 class Position {
