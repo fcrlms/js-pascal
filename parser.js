@@ -1,5 +1,5 @@
 const fs = require("node:fs");
-const { Token, Position } = require("./utils.js");
+const { Token, Position, Symbol, keywordMap } = require("./utils.js");
 const {
   BinaryAstNode,
   UnaryAstNode,
@@ -15,37 +15,187 @@ const {
   ForAstNode,
 } = require("./ast.js");
 
-class Lexer {
+class CharBuffer {
   constructor(filepath) {
-    /** @type{fs.ReadStream} */
+    /** @type {fs.ReadStream} */
     this.rstream = fs.createReadStream(filepath).setEncoding("ascii");
 
-    /** @type{Buffer} TODO: probably create a proper class for this
-        (avoid problems with utf-8 if this ever supports that) */
+    /** @type {Buffer?} */
     this.buffer = this.rstream.read();
     this.buffer_pos = 0;
 
-    /** @type {Position} starting at line 1 and column 1 */
-    this.pos = new Position(1, 1);
     /* This is intended to be used by the error logger
        when printing the error and the relevant code */
     this.offset = 0;
-
-    /** @type {Symbol} */
-    this.curr_token = undefined;
-    /** @type {Symbol?} */
-    this.next_token = null;
   }
 
-  _fetchChar() {
-    if (this.buffer_pos == this.buffer.length) {
-      // TODO: get next buffer or fail if EOF
+  isFinished() {
+    return this.buffer === null;
+  }
+
+  next() {
+    this.buffer_pos += 1;
+
+    if (this.buffer_pos >= this.buffer.length) {
+      this.buffer = this.rstream.read();
+      this.buffer_pos = 0;
+    }
+  }
+
+  getCurr() {
+    if (this.isFinished()) return null;
+
+    return String.fromCharCode(this.buffer[this.buffer_pos]);
+  }
+
+  fetchChar() {
+    if (!this.buffer) {
       return null;
     }
 
-    const char = String.fromCharCode(this.buffer[this.buffer_pos]);
-    this.buffer_pos += 1;
+    const pos = this.buffer_pos;
+
+    if (pos >= this.buffer.length) {
+      this.buffer = this.rstream.read();
+      this.buffer_pos = 0;
+
+      if (!this.buffer) return null;
+    }
+
+    const char = String.fromCharCode(this.buffer[pos]);
     return char;
+  }
+}
+
+class Lexer {
+  constructor(filepath) {
+    /** @type {CharBuffer} */
+    this.buffer = new CharBuffer(filepath);
+
+    /** @type {Position} starting at line 1 and column 1 */
+    this.pos = new Position(1, 1);
+
+    /** @type {Symbol} */
+    this.curr_token = this.getToken();
+    /** @type {Symbol?} */
+    this.next_token = this.getToken();
+  }
+
+  /** @private */
+  getToken() {
+    const start_position = Object.assign({}, this.pos);
+
+    const curr_char = this.buffer.getCurr();
+
+    if (curr_char === null) {
+      return null;
+    }
+
+    let lexeme = "";
+    let symbol;
+
+    // Loops until a token is produced
+    while (!this.buffer.isFinished()) {
+      if (curr_char === "\n") {
+        this.pos.col = 1;
+        this.pos.line += 1;
+        this.buffer.next();
+        continue;
+      } else if (is_blank(curr_char)) {
+        this.pos.col += 1;
+        this.buffer.next();
+        continue;
+      } else if (curr_char === "}") {
+        // TODO: log error, no matching opening comment
+        this.pos.col += 1;
+        this.buffer.next();
+        continue;
+      } else if (curr_char === "{") {
+        // TODO: handle comments, return symbol with full coment for reconstruction
+        continue;
+      } else if (is_digit(curr_char)) {
+        // TODO: handle number
+        continue;
+      } else if (is_alpha(curr_char)) {
+        // TODO: handle id
+        continue;
+      }
+
+      lexeme += curr_char;
+
+      switch (curr_char) {
+        case "+":
+          symbol = new Symbol(Token.SUMOP, lexeme, pos);
+          break;
+        case "-":
+          symbol = new Symbol(Token.SUBOP, lexeme, pos);
+          break;
+        case "*":
+          symbol = new Symbol(Token.MULTOP, lexeme, pos);
+          break;
+        case "/":
+          symbol = new Symbol(Token.DIVOP, lexeme, pos);
+          break;
+        case "=":
+          symbol = new Symbol(Token.EQUALS, lexeme, start_pos);
+          break;
+        case "<":
+          if (this.buffer.peek() === "=") {
+            pos.col += 1;
+            this.buffer.next();
+            lexeme += this.buffer.curr();
+            symbol = new Symbol(Token.LESSEQ, lexeme, start_pos);
+          } else if (this.buffer.peek() === ">") {
+            pos.col += 1;
+            this.buffer.next();
+            lexeme += this.buffer.curr();
+            symbol = new Symbol(Token.NOTEQUALS, lexeme, start_pos);
+          } else {
+            symbol = new Symbol(Token.LESS, lexeme, start_pos);
+          }
+          break;
+        case ">":
+          if (this.buffer.peek() === "=") {
+            pos.col += 1;
+            this.buffer.next();
+            lexeme += this.buffer.curr();
+            symbol = new Symbol(Token.GREATEREQ, lexeme, start_pos);
+          } else {
+            symbol = new Symbol(Token.GREATER, lexeme, start_pos);
+          }
+          break;
+        case ":":
+          if (this.buffer.peek() === "=") {
+            pos.col += 1;
+            this.buffer.next();
+            lexeme += this.buffer.curr();
+            symbol = new Symbol(Token.ASSIGN, lexeme, start_pos);
+          } else {
+            symbol = new Symbol(Token.COLON, lexeme, start_pos);
+          }
+          break;
+        case ";":
+          symbol = new Symbol(Token.SEMICOLON, lexeme, start_pos);
+          break;
+        case ".":
+          symbol = new Symbol(Token.DOT, lexeme, start_pos);
+          break;
+        case ",":
+          symbol = new Symbol(Token.COMMA, lexeme, start_pos);
+          break;
+        case "(":
+          symbol = new Symbol(Token.LPAREN, lexeme, start_pos);
+          break;
+        case ")":
+          symbol = new Symbol(Token.RPAREN, lexeme, start_pos);
+          break;
+        default:
+          // TODO: log error, unrecognized symbol and return the symbol
+          break;
+      }
+    }
+
+    // TODO: create symbol properly and return it
   }
 
   getCurrent() {
@@ -58,8 +208,8 @@ class Lexer {
 
   advance() {
     this.curr_token = this.next_token;
-
-    // Read file and get next token here
+    this.buffer_pos += 1;
+    this.next_token = this.getToken();
   }
 }
 
@@ -170,7 +320,7 @@ class Parser {
 
 let parser = new Parser();
 
-module.exports = parse = (symbols, filepath) => {
+module.exports = (symbols, filepath) => {
   parser = new Parser(symbols, filepath);
 
   let ast;

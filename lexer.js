@@ -34,7 +34,7 @@ const is_digit = c => c >= '0' && c <= '9';
 const is_alpha = c => (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
 const is_alphanum_ = c => is_alpha(c) || is_digit(c) || c === '_';
 
-module.exports = lexer = (filepath) => {
+module.exports = (filepath) => {
     const content = fs.readFileSync(filepath).toString().split("");
 
     const pos = new Position(1,1);
