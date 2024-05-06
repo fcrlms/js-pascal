@@ -14,6 +14,8 @@ const {
   ProgramAstNode,
   ForAstNode,
 } = require("./ast.js");
+// eslint-disable-next-line no-unused-vars
+const { Formatter } = require("./formatter.js");
 
 class CharBuffer {
   /**
@@ -324,8 +326,9 @@ class Lexer {
 class Parser {
   /**
    * @param {String} filepath
+   * @param {Formatter} formatter
    */
-  constructor(filepath) {
+  constructor(filepath, formatter = null) {
     this.pos = 0;
 
     /** @type {String} */
@@ -338,6 +341,9 @@ class Parser {
 
     /** @type {Lexer} */
     this.lexer = new Lexer(filepath);
+
+    /** @type {Formatter?} */
+    this.formatter = formatter;
   }
 
   reachedEnd() {
@@ -410,7 +416,7 @@ class Parser {
 
     // Skip while we receive comment symbols
     while (this.peek() && this.peek().type === Token.COMMENT) {
-      // TODO: give to the formatter here
+      if (this.formatter) this.formatter.addComment(this.peek());
 
       if (!this.reachedEnd()) this.lexer.advance();
     }
@@ -451,13 +457,8 @@ class Parser {
 /** @type {Parser} */
 let parser;
 
-module.exports = (filepath) => {
-  parser = new Parser(filepath);
-
-  // while (!parser.reachedEnd()) {
-  //   console.log(parser.peek());
-  //   parser.advance();
-  // }
+module.exports = (filepath, formatter = null) => {
+  parser = new Parser(filepath, formatter);
 
   let ast;
   try {
