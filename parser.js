@@ -16,43 +16,59 @@ const {
 } = require("./ast.js");
 
 class CharBuffer {
+  /**
+   * @param {String} filepath
+   */
   constructor(filepath) {
+    this.fd = fs.openSync(filepath);
     /** @type {fs.ReadStream} */
-    this.rstream = fs.createReadStream(filepath).setEncoding("ascii");
+    this.rstream = fs.createReadStream(filepath).setEncoding("utf-8");
 
     /** @type {Buffer?} */
-    this.buffer = this.rstream.read();
-    this.buffer_pos = 0;
+    this.buffer = Buffer.alloc(8192);
+    this.buffer_size = this.read();
+    this.string_buf = this.buffer.toString("utf-8", 0, this.buffer_size);
+    this.string_offset = 0;
 
     /* This is intended to be used by the error logger
        when printing the error and the relevant code */
     this.offset = 0;
   }
 
+  read() {
+    return fs.readSync(this.fd, this.buffer, 0, 8192, this.offset);
+  }
+
   isFinished() {
-    return this.buffer === null;
+    return this.buffer_size === 0;
   }
 
   next() {
-    this.buffer_pos += 1;
+    this.string_offset += 1;
     this.offset += 1;
 
-    if (this.buffer_pos >= this.buffer.length) {
-      this.buffer = this.rstream.read();
-      this.buffer_pos = 0;
+    if (this.string_offset >= this.string_buf.length) {
+      this.buffer_size = this.read();
+      this.string_buf = this.buffer.toString("utf-8", 0, this.buffer_size);
+      this.string_offset = 0;
     }
   }
 
   getCurr() {
     if (this.isFinished()) return null;
 
-    return String.fromCharCode(this.buffer[this.buffer_pos]);
+    // TODO: if a utf8 character begins in this buffer
+    // but ends in the next one, this won't work, probably
+    // this will never get fixed
+    return this.string_buf[this.string_offset];
   }
 
   peek() {
     if (this.isFinished()) return null;
-    if (this.buffer_pos + 1 >= this.buffer.length) return null;
-    return String.fromCharCode(this.buffer[this.buffer_pos + 1]);
+    // TODO: fix this to peek at the next buffer, will never do this btw
+    if (this.string_offset + 1 >= this.string_buf.length) return null;
+
+    return this.string_buf[this.string_offset + 1];
   }
 
   fetchChar() {
@@ -60,16 +76,16 @@ class CharBuffer {
       return null;
     }
 
-    const pos = this.buffer_pos;
+    const pos = this.string_offset;
 
-    if (pos >= this.buffer.length) {
-      this.buffer = this.rstream.read();
-      this.buffer_pos = 0;
+    if (pos >= this.string_buf.length) {
+      this.buffer_size = this.read();
+      this.string_offset = 0;
 
-      if (!this.buffer) return null;
+      if (!this.buffer_size) return null;
     }
 
-    const char = String.fromCharCode(this.buffer[pos]);
+    const char = this.string_buf[pos];
     return char;
   }
 }
@@ -81,6 +97,9 @@ const is_alpha = (c) => (c >= "A" && c <= "Z") || (c >= "a" && c <= "z");
 const is_alphanum_ = (c) => is_alpha(c) || is_digit(c) || c === "_";
 
 class Lexer {
+  /**
+   * @param {String} filepath
+   */
   constructor(filepath) {
     /** @type {CharBuffer} */
     this.buffer = new CharBuffer(filepath);
@@ -92,6 +111,8 @@ class Lexer {
     this.curr_token = this.getToken();
     /** @type {Symbol?} */
     this.next_token = this.getToken();
+    /** @type {Symbol?} */
+    this.prev_token = null;
   }
 
   /** @private */
@@ -154,7 +175,7 @@ class Lexer {
       }
 
       symbol.lexeme = lexeme;
-      symbol.token = Token.COMMENT;
+      symbol.type = Token.COMMENT;
       return symbol;
     } else if (is_digit(curr_char)) {
       let is_real = false;
@@ -175,7 +196,7 @@ class Lexer {
       }
 
       const token = is_real ? Token.REALCONST : Token.INTCONST;
-      symbol.token = token;
+      symbol.type = token;
       symbol.lexeme = lexeme;
       return symbol;
     } else if (is_alpha(curr_char)) {
@@ -190,7 +211,7 @@ class Lexer {
         token = keywordMap.get(lexeme);
       }
 
-      symbol.token = token;
+      symbol.type = token;
       symbol.lexeme = lexeme;
       return symbol;
     }
@@ -273,7 +294,15 @@ class Lexer {
     symbol.lexeme = lexeme;
     symbol.type = token;
 
+    // advance buffer after finishing reading lexeme
+    this.buffer.next();
+    this.pos.col += 1;
+
     return symbol;
+  }
+
+  getPrevious() {
+    return this.prev_token;
   }
 
   getCurrent() {
@@ -285,6 +314,7 @@ class Lexer {
   }
 
   advance() {
+    this.prev_token = this.curr_token;
     this.curr_token = this.next_token;
     this.buffer_pos += 1;
     this.next_token = this.getToken();
@@ -292,24 +322,30 @@ class Lexer {
 }
 
 class Parser {
-  constructor(symbols, filepath) {
-    this.symbols = symbols;
+  /**
+   * @param {String} filepath
+   */
+  constructor(filepath) {
     this.pos = 0;
 
+    /** @type {String} */
     this.filepath = filepath;
 
+    /** @type {Boolean} */
     this.hadError = false;
+    /** @type {Boolean} */
     this.panicMode = false;
 
+    /** @type {Lexer} */
     this.lexer = new Lexer(filepath);
   }
 
-  /** @returns {Boolean} */
   reachedEnd() {
-    return this.pos >= this.symbols.length;
+    return this.lexer.getCurrent() === null;
   }
 
   /**
+   * Advances if any of the input tokens matches the current token
    * @param {Symbol} tokens
    * @returns {Boolean}
    */
@@ -327,6 +363,7 @@ class Parser {
   }
 
   /**
+   * Returns true if any of the input tokens matches the current token
    * @param {Symbol} tokens
    * @returns {Boolean}
    */
@@ -355,22 +392,37 @@ class Parser {
    * @returns {Symbol}
    */
   peek() {
-    return this.symbols[this.pos];
+    return this.lexer.getCurrent();
   }
 
   /**
+   * Advances parser state to the next symbol read by the lexer
+   * if the formatter is given to this parser then all COMMENT
+   * tokens will be read by the formatter (for obvious reasons)
+   * the actual parser will ignore all these occurrences for
+   * convenience
    * @returns {Symbol}
    */
   advance() {
-    if (!this.reachedEnd()) this.pos++;
-    return this.previous();
+    if (!this.reachedEnd()) this.lexer.advance();
+
+    const previous = this.previous();
+
+    // Skip while we receive comment symbols
+    while (this.peek() && this.peek().type === Token.COMMENT) {
+      // TODO: give to the formatter here
+
+      if (!this.reachedEnd()) this.lexer.advance();
+    }
+
+    return previous;
   }
 
   /**
    * @returns {Symbol}
    */
   previous() {
-    return this.symbols[this.pos - 1];
+    return this.lexer.prev_token;
   }
 
   /**
@@ -396,10 +448,16 @@ class Parser {
   }
 }
 
-let parser = new Parser();
+/** @type {Parser} */
+let parser;
 
-module.exports = (symbols, filepath) => {
-  parser = new Parser(symbols, filepath);
+module.exports = (filepath) => {
+  parser = new Parser(filepath);
+
+  // while (!parser.reachedEnd()) {
+  //   console.log(parser.peek());
+  //   parser.advance();
+  // }
 
   let ast;
   try {
