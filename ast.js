@@ -95,9 +95,10 @@ class ForAstNode {
    * @param {Symbol} symbol
    * @param {AssignAstNode} assignment
    * @param {(BinaryAstNode | UnaryAstNode | ProcCallAstNode | NumAstNode)} targetexpr
+   * @param {Symbol} forDo
    * @param {(AssignAstNode | ProcCallAstNode | IfAstNode | WhileAstNode | ForAstNode | CmdBlockAstNode)} body
    */
-  constructor(symbol, assignment, type, targetexpr, body) {
+  constructor(symbol, assignment, type, targetexpr, forDo, body) {
     /** @public @type {Symbol} */
     this.symbol = symbol;
     /** @public @type {AssignAstNode} */
@@ -106,6 +107,8 @@ class ForAstNode {
     this.type = type;
     /** @public @type {(BinaryAstNode | UnaryAstNode | ProcCallAstNode | NumAstNode)} */
     this.targetexpr = targetexpr;
+    /** @public @type{Symbol} */
+    this.do = forDo;
     /** @public @type {(AssignAstNode | ProcCallAstNode | IfAstNode | WhileAstNode | ForAstNode | CmdBlockAstNode)} */
     this.body = body;
   }
@@ -115,13 +118,16 @@ class WhileAstNode {
   /**
    * @param {Symbol} symbol
    * @param {(BinaryAstNode | UnaryAstNode | ProcCallAstNode | NumAstNode)} expr
+   * @param {Symbol} whileDo
    * @param {(AssignAstNode | ProcCallAstNode | IfAstNode | WhileAstNode | ForAstNode | CmdBlockAstNode)} body
    */
-  constructor(symbol, expr, body) {
+  constructor(symbol, expr, whileDo, body) {
     /** @public @type {Symbol} */
     this.symbol = symbol;
     /** @public @type {(BinaryAstNode | UnaryAstNode | ProcCallAstNode | NumAstNode)} */
     this.expr = expr;
+    /** @public @type {Symbol} */
+    this.do = whileDo;
     /** @public @type {(AssignAstNode | ProcCallAstNode | IfAstNode | WhileAstNode | ForAstNode | CmdBlockAstNode)} */
     this.body = body;
   }
@@ -131,14 +137,17 @@ class IfAstNode {
   /**
    * @param {Symbol} symbol
    * @param {(BinaryAstNode | UnaryAstNode | ProcCallAstNode | NumAstNode)} expr
+   * @param {Symbol} then
    * @param {(AssignAstNode | ProcCallAstNode | IfAstNode | WhileAstNode | ForAstNode | CmdBlockAstNode)} body
    * @param {(AssignAstNode | ProcCallAstNode | IfAstNode | WhileAstNode | ForAstNode | CmdBlockAstNode)} elseBranch
    */
-  constructor(symbol, expr, body, elseBranch) {
+  constructor(symbol, expr, then, body, elseBranch) {
     /** @public @type {Symbol} */
     this.symbol = symbol;
     /** @public @type {(BinaryAstNode | UnaryAstNode | ProcCallAstNode | NumAstNode)} */
     this.expr = expr;
+    /** @public @type {Symbol} */
+    this.then = then;
     /** @public @type {(AssignAstNode | ProcCallAstNode | IfAstNode | WhileAstNode | ForAstNode | CmdBlockAstNode)} */
     this.body = body;
     /** @public @type {(AssignAstNode | ProcCallAstNode | IfAstNode | WhileAstNode | ForAstNode | CmdBlockAstNode)} */
@@ -148,7 +157,6 @@ class IfAstNode {
 
 class CmdBlockAstNode {
   /**
-   *
    * @param {Symbol} symbol
    * @param {Array<(AssignAstNode | ProcCallAstNode | IfAstNode | WhileAstNode | ForAstNode)>} commands
    */

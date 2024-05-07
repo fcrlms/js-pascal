@@ -142,6 +142,7 @@ class Highlighter {
     } else if (cmd instanceof IfAstNode) {
       this.highlightKeyword(cmd.symbol);
       this.highlightExpr(cmd.expr);
+      this.highlightKeyword(cmd.then);
 
       if (cmd.body instanceof CmdBlockAstNode) {
         this.highlightNode(cmd.body);
@@ -159,6 +160,7 @@ class Highlighter {
     } else if (cmd instanceof WhileAstNode) {
       this.highlightKeyword(cmd.symbol);
       this.highlightExpr(cmd.expr);
+      this.highlightKeyword(cmd.do);
 
       if (cmd.body instanceof CmdBlockAstNode) {
         this.highlightNode(cmd.body);
@@ -168,8 +170,9 @@ class Highlighter {
     } else if (cmd instanceof ForAstNode) {
       this.highlightKeyword(cmd.symbol);
       this.highlightCmd(cmd.assignment);
-      // this.highlightKeyword(cmd.type);
+      this.highlightKeyword(cmd.type);
       this.highlightExpr(cmd.targetexpr);
+      this.highlightKeyword(cmd.do);
 
       if (cmd.body instanceof CmdBlockAstNode) {
         this.highlightNode(cmd.body);
@@ -197,6 +200,7 @@ class Highlighter {
       this.highlightExpr(expr.child);
     } else if (expr instanceof BinaryAstNode) {
       this.highlightExpr(expr.left);
+      // TODO: 'not' and 'and'
       this.highlightExpr(expr.right);
     }
   }
@@ -207,10 +211,8 @@ class Highlighter {
   highlightNumber(symbol) {
     this.writeUntil(symbol);
 
-    let len = symbol.lexeme.length;
-
     let color = COLORS.GREEN;
-    this.offset += len;
+    this.offset += symbol.lexeme.length;
     this.stream.write(wrap_in_colors(symbol.lexeme, color));
   }
 
@@ -229,6 +231,10 @@ class Highlighter {
       case Token.FOR:
       case Token.WHILE:
       case Token.IF:
+      case Token.TO:
+      case Token.DOWNTO:
+      case Token.THEN:
+      case Token.DO:
         colors.push(COLORS.MAGENTA);
         break;
       case Token.INT:

@@ -318,7 +318,6 @@ class Lexer {
   advance() {
     this.prev_token = this.curr_token;
     this.curr_token = this.next_token;
-    this.buffer_pos += 1;
     this.next_token = this.getToken();
   }
 }
@@ -344,6 +343,13 @@ class Parser {
 
     /** @type {Formatter?} */
     this.formatter = formatter;
+
+    /** @type {symbol} */
+    this.previousToken = null;
+
+    // TODO: initial loop of handling comments
+    /** @type {symbol} */
+    this.currentToken = this.lexer.getCurrent();
   }
 
   reachedEnd() {
@@ -398,7 +404,7 @@ class Parser {
    * @returns {Symbol}
    */
   peek() {
-    return this.lexer.getCurrent();
+    return this.currentToken;
   }
 
   /**
@@ -412,23 +418,28 @@ class Parser {
   advance() {
     if (!this.reachedEnd()) this.lexer.advance();
 
-    const previous = this.previous();
+    this.previousToken = this.peek();
 
     // Skip while we receive comment symbols
-    while (this.peek() && this.peek().type === Token.COMMENT) {
-      if (this.formatter) this.formatter.addComment(this.peek());
+    while (
+      !this.reachedEnd() &&
+      this.lexer.getCurrent().type === Token.COMMENT
+    ) {
+      if (this.formatter) this.formatter.addComment(this.lexer.getCurrent());
 
-      if (!this.reachedEnd()) this.lexer.advance();
+      this.lexer.advance();
     }
 
-    return previous;
+    this.currentToken = this.lexer.getCurrent();
+
+    return this.previous();
   }
 
   /**
    * @returns {Symbol}
    */
   previous() {
-    return this.lexer.prev_token;
+    return this.previousToken;
   }
 
   /**
@@ -778,6 +789,7 @@ function command() {
     const symbol = parser.previous();
     const expression = expr();
     parser.consume(Token.THEN, "Expected 'then' after if condition.");
+    const then = parser.previous();
     const body = command();
 
     let elseBranch = null;
@@ -786,15 +798,16 @@ function command() {
       elseBranch = command();
     }
 
-    return new IfAstNode(symbol, expression, body, elseBranch);
+    return new IfAstNode(symbol, expression, then, body, elseBranch);
   }
 
   if (parser.match(Token.WHILE)) {
     const symbol = parser.previous();
     const expression = expr();
     parser.consume(Token.DO, "Expected 'do' after while condition.");
+    const whileDo = parser.previous();
     const body = command();
-    return new WhileAstNode(symbol, expression, body);
+    return new WhileAstNode(symbol, expression, whileDo, body);
   }
 
   if (parser.match(Token.FOR)) {
@@ -822,10 +835,11 @@ function command() {
     const target = expr();
 
     parser.consume(Token.DO, "Expected 'do' after 'for' target expression.");
+    const forDo = parser.previous();
 
     const body = command();
 
-    return new ForAstNode(symbol, assignment, type, target, body);
+    return new ForAstNode(symbol, assignment, type, target, forDo, body);
   }
 
   parser.advance();
