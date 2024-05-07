@@ -817,13 +817,15 @@ function command() {
       );
     }
 
+    const type = parser.previous();
+
     const target = expr();
 
     parser.consume(Token.DO, "Expected 'do' after 'for' target expression.");
 
     const body = command();
 
-    return new ForAstNode(symbol, assignment, target, body);
+    return new ForAstNode(symbol, assignment, type, target, body);
   }
 
   parser.advance();

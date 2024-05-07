@@ -97,11 +97,13 @@ class ForAstNode {
    * @param {(BinaryAstNode | UnaryAstNode | ProcCallAstNode | NumAstNode)} targetexpr
    * @param {(AssignAstNode | ProcCallAstNode | IfAstNode | WhileAstNode | ForAstNode | CmdBlockAstNode)} body
    */
-  constructor(symbol, assignment, targetexpr, body) {
+  constructor(symbol, assignment, type, targetexpr, body) {
     /** @public @type {Symbol} */
     this.symbol = symbol;
     /** @public @type {AssignAstNode} */
     this.assignment = assignment;
+    /** @public @type {Symbol} either `to` or `downto` */
+    this.type = type;
     /** @public @type {(BinaryAstNode | UnaryAstNode | ProcCallAstNode | NumAstNode)} */
     this.targetexpr = targetexpr;
     /** @public @type {(AssignAstNode | ProcCallAstNode | IfAstNode | WhileAstNode | ForAstNode | CmdBlockAstNode)} */
