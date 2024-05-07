@@ -155,6 +155,24 @@ class Formatter {
     return symbol.offset > this.comments[0].offset;
   }
 
+  dumpComments() {
+    let prev_comment = null;
+    while (this.hasComments()) {
+      const comment = this.comments[0];
+      if (!prev_comment) prev_comment = comment;
+
+      if (prev_comment.pos.line < comment.pos.line) {
+        this.newline();
+      }
+
+      this._writeComment();
+
+      prev_comment = comment;
+    }
+
+    if (prev_comment) this.newline();
+  }
+
   /**
    * @param {ProgramAstNode} prog
    */
@@ -382,7 +400,7 @@ const format = (filepath, ast, formatter) => {
   formatter.writeChar("end.");
   formatter.newline();
 
-  // TODO: write all remaining comments
+  formatter.dumpComments();
 
   wstream.close();
 };
