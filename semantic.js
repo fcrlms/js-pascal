@@ -108,7 +108,6 @@ class Scopes {
     for (let [key, value] of scope) {
       if (value.wasUsed) continue;
 
-      console.log(value);
       logger.error(value.symbol, `Variable '${key}' was never used.`);
     }
 

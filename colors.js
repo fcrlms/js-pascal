@@ -21,17 +21,23 @@ const COLORS = {
   MAGENTA: 4,
   BLUE: 5,
   GREEN: 6,
+  UNDERLINE: 7,
+  CYAN: 8,
+  YELLOW: 9,
 };
 
 const color_to_code = new Map();
 color_to_code.set(COLORS.RED, "\x1b[31m");
 color_to_code.set(COLORS.GREEN, "\x1b[32m");
+color_to_code.set(COLORS.YELLOW, "\x1b[33m");
 color_to_code.set(COLORS.BLUE, "\x1b[34m");
 color_to_code.set(COLORS.MAGENTA, "\x1b[35m");
+color_to_code.set(COLORS.CYAN, "\x1b[36m");
 
 color_to_code.set(COLORS.RESET, "\x1b[0m");
 color_to_code.set(COLORS.BRIGHT, "\x1b[1m");
 color_to_code.set(COLORS.DIM, "\x1b[2m");
+color_to_code.set(COLORS.UNDERLINE, "\x1b[4m");
 
 const get_color_code = (color) => color_to_code.get(color);
 
