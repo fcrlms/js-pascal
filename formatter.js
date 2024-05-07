@@ -1,8 +1,13 @@
 const fs = require("node:fs");
-// eslint-disable-next-line no-unused-vars
-const { ProgramAstNode, VarDeclAstNode, CmdBlockAstNode } = require("./ast");
-// eslint-disable-next-line no-unused-vars
+/* eslint-disable no-unused-vars */
+const {
+  ProgramAstNode,
+  VarDeclAstNode,
+  CmdBlockAstNode,
+  DeclAstNode,
+} = require("./ast");
 const { Symbol } = require("./utils");
+/* eslint-enable no-unused-vars */
 
 class Formatter {
   constructor() {
@@ -111,6 +116,112 @@ class Formatter {
 
     return symbol.offset > this.comments[0].offset;
   }
+
+  /**
+   * @param {ProgramAstNode} prog
+   */
+  formatSubprogram(prog) {
+    this.writeSymbol(prog.symbol);
+    this.writeSymbol(prog.id);
+    this.formatArgs(prog.args);
+    this.writeChar(";", true);
+
+    if (prog.vardecl) {
+      this.formatVarDecl(prog.vardecl);
+    }
+
+    if (prog.subprogram) {
+      for (let i = 0; i < prog.subprogram.length; ++i) {
+        this.formatSubprogram(prog.subprogram[i]);
+        this.newline();
+      }
+    }
+
+    this.writeSymbol(prog.body.symbol);
+    this.formatCmdBlock(prog.body);
+    this.writeChar("end;");
+    this.newline();
+  }
+
+  /**
+   * @param {VarDeclAstNode} vardecl
+   */
+  formatVarDecl(vardecl) {
+    this.newline();
+    this.writeSymbol(vardecl.symbol);
+    this.addIndent();
+    this.newline();
+
+    for (let i = 0; i < vardecl.declarations.length; ++i) {
+      const decl = vardecl.declarations[i];
+      this.formatDecl(decl);
+
+      if (i !== vardecl.declarations.length - 1) {
+        this.newline();
+      }
+    }
+
+    this.removeIndent();
+    this.newline();
+  }
+
+  /**
+   * @param {VarDeclAstNode} args
+   */
+  formatArgs(args) {
+    this.writeSymbol(args.symbol);
+
+    // avoid space between '(' and first id
+    this.isAtStartOfLine = true;
+
+    for (let i = 0; i < args.declarations.length - 1; ++i) {
+      const decl = args.declarations[i];
+      this.formatDecl(decl);
+    }
+
+    // avoid space between ')' and last type
+    const lastdecl = args.declarations[args.declarations.length - 1];
+    this.formatDecl(lastdecl, false);
+
+    this.writeChar(")", true);
+  }
+
+  /**
+   * @param {DeclAstNode} vardecl
+   */
+  formatDecl(decl, includeLastSemicolon = true) {
+    for (let i = 0; i < decl.ids.length - 1; ++i) {
+      const id = decl.ids[i];
+      this.writeSymbol(id);
+      this.writeChar(",", true);
+    }
+    this.writeSymbol(decl.ids[decl.ids.length - 1]);
+    this.writeChar(":");
+    this.writeSymbol(decl.type);
+
+    if (includeLastSemicolon) {
+      this.writeChar(";", true);
+    }
+  }
+
+  /**
+   * @param {CmdBlockAstNode} cmdblock
+   */
+  formatCmdBlock(cmdblock) {
+    this.addIndent();
+    this.newline();
+
+    for (let i = 0; i < cmdblock.commands.length; ++i) {
+      // handle each type of command
+      // end with ';' if necessary
+      if (i !== cmdblock.commands.length - 1) {
+        this.newline();
+      }
+    }
+
+    this.removeIndent();
+    this.newline();
+  }
 }
 
 /**
@@ -128,102 +239,24 @@ const format = (filepath, ast, formatter) => {
   formatter.writeChar(";", true);
 
   if (ast.vardecl) {
-    formatVarDecl(formatter, ast.vardecl);
+    formatter.formatVarDecl(ast.vardecl);
   }
 
   if (ast.subprogram) {
     for (let i = 0; i < ast.subprogram.length; ++i) {
-      formatSubprogram(formatter, ast.subprogram[i]);
+      formatter.formatSubprogram(ast.subprogram[i]);
       formatter.newline();
     }
   }
 
   formatter.writeSymbol(ast.body.symbol);
-  formatCmdBlock(formatter, ast.body);
+  formatter.formatCmdBlock(ast.body);
   formatter.writeChar("end.");
   formatter.newline();
 
   // TODO: write all remaining comments
 
   wstream.close();
-};
-
-/**
- * @type {Formatter} formatter
- * @type {ProgramAstNode} prog
- */
-const formatSubprogram = (formatter, prog) => {
-  formatter.writeSymbol(prog.symbol);
-  formatter.writeSymbol(prog.id);
-  // TODO: format arguments
-  formatter.writeChar(";", true);
-
-  if (prog.vardecl) {
-    formatVarDecl(formatter, prog.vardecl);
-  }
-
-  if (prog.subprogram) {
-    for (let i = 0; i < prog.subprogram.length; ++i) {
-      formatSubprogram(prog.subprogram[i]);
-      formatter.newline();
-    }
-  }
-
-  formatter.writeSymbol(prog.body.symbol);
-  formatCmdBlock(formatter, prog.body);
-  formatter.writeChar("end;");
-  formatter.newline();
-};
-
-/**
- * @param {Formatter} formatter
- * @param {CmdBlockAstNode} cmdblock
- */
-const formatCmdBlock = (formatter, cmdblock) => {
-  formatter.addIndent();
-  formatter.newline();
-
-  for (let i = 0; i < cmdblock.commands.length; ++i) {
-    // handle each type of command
-    // end with ';' if necessary
-    if (i !== cmdblock.commands.length - 1) {
-      formatter.newline();
-    }
-  }
-
-  formatter.removeIndent();
-  formatter.newline();
-};
-
-/**
- * @param {Formatter} formatter
- * @param {VarDeclAstNode} vardecl
- */
-const formatVarDecl = (formatter, vardecl) => {
-  formatter.newline();
-  formatter.writeSymbol(vardecl.symbol);
-  formatter.addIndent();
-  formatter.newline();
-
-  for (let i = 0; i < vardecl.declarations.length; ++i) {
-    const decl = vardecl.declarations[i];
-    for (let j = 0; j < decl.ids.length - 1; ++j) {
-      const id = decl.ids[j];
-      formatter.writeSymbol(id);
-      formatter.writeChar(",", true);
-    }
-    formatter.writeSymbol(decl.ids[decl.ids.length - 1]);
-    formatter.writeChar(":");
-    formatter.writeSymbol(decl.type);
-    formatter.writeChar(";", true);
-
-    if (i !== vardecl.declarations.length - 1) {
-      formatter.newline();
-    }
-  }
-
-  formatter.removeIndent();
-  formatter.newline();
 };
 
 module.exports = {
