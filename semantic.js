@@ -108,6 +108,7 @@ class Scopes {
     for (let [key, value] of scope) {
       if (value.wasUsed) continue;
 
+      console.log(value);
       logger.error(value.symbol, `Variable '${key}' was never used.`);
     }
 
@@ -126,8 +127,8 @@ class ScopeEntry {
     this.symbol.type = type;
     this.args = args;
 
-    this.wasInitialized;
-    this.wasUsed;
+    this.wasInitialized = false;
+    this.wasUsed = false;
   }
 
   /**
