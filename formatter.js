@@ -10,6 +10,9 @@ const {
   IfAstNode,
   WhileAstNode,
   ForAstNode,
+  NumAstNode,
+  UnaryAstNode,
+  BinaryAstNode,
 } = require("./ast");
 const { Symbol } = require("./utils");
 /* eslint-enable no-unused-vars */
@@ -179,8 +182,10 @@ class Formatter {
   formatSubprogram(prog) {
     this.writeSymbol(prog.symbol);
     this.writeSymbol(prog.id);
-    this.formatArgs(prog.args);
+    if (prog.args) this.formatArgs(prog.args);
     this.writeChar(";", true);
+
+    this.addIndent();
 
     if (prog.vardecl) {
       this.formatVarDecl(prog.vardecl);
@@ -196,6 +201,7 @@ class Formatter {
     this.writeSymbol(prog.body.symbol);
     this.formatCmdBlock(prog.body);
     this.writeChar("end;");
+    this.removeIndent();
     this.newline();
   }
 
@@ -264,13 +270,20 @@ class Formatter {
    * @param {CmdBlockAstNode} cmdblock
    */
   formatCmdBlock(cmdblock) {
+    if (!cmdblock.commands.length) {
+      this.newline();
+      return;
+    }
+
     this.addIndent();
     this.newline();
 
     for (let i = 0; i < cmdblock.commands.length; ++i) {
-      this.formatCmd(cmdblock.commands[i]);
+      const cmd = cmdblock.commands[i];
+      this.formatCmd(cmd);
 
       if (i !== cmdblock.commands.length - 1) {
+        this.writeChar(";", true);
         this.newline();
       }
     }
@@ -289,7 +302,9 @@ class Formatter {
       this.formatExpr(cmd.expr);
     } else if (cmd instanceof ProcCallAstNode) {
       this.writeSymbol(cmd.symbol);
-      if (cmd.args) this.formatArgs(cmd.args);
+      if (cmd.args) {
+        // TODO: handle each expression
+      }
     } else if (cmd instanceof IfAstNode) {
       this.writeSymbol(cmd.symbol);
       this.formatExpr(cmd.expr);
@@ -368,7 +383,30 @@ class Formatter {
   /**
    * @param {BinaryAstNode | UnaryAstNode | ProcCallAstNode | NumAstNode} expr
    */
-  formatExpr(expr) {}
+  formatExpr(expr) {
+    if (expr instanceof ProcCallAstNode) {
+      this.writeSymbol(expr.symbol);
+      if (expr.args) {
+        // TODO: handle each expression
+      }
+    } else if (expr instanceof NumAstNode) {
+      this.writeSymbol(expr.symbol);
+    } else if (expr instanceof UnaryAstNode) {
+      if (expr.symbol.lexeme === "(") {
+        this.writeSymbol(expr.symbol);
+        this.isAtStartOfLine = true;
+        this.formatExpr(expr.child);
+        this.writeChar(")", true);
+      } else {
+        this.writeSymbol(expr.symbol);
+        this.formatExpr(expr.child);
+      }
+    } else if (expr instanceof BinaryAstNode) {
+      this.formatExpr(expr.left);
+      this.writeSymbol(expr.symbol);
+      this.formatExpr(expr.right);
+    }
+  }
 }
 
 /**
