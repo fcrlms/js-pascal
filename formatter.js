@@ -5,6 +5,11 @@ const {
   VarDeclAstNode,
   CmdBlockAstNode,
   DeclAstNode,
+  AssignAstNode,
+  ProcCallAstNode,
+  IfAstNode,
+  WhileAstNode,
+  ForAstNode,
 } = require("./ast");
 const { Symbol } = require("./utils");
 /* eslint-enable no-unused-vars */
@@ -245,8 +250,8 @@ class Formatter {
     this.newline();
 
     for (let i = 0; i < cmdblock.commands.length; ++i) {
-      // handle each type of command
-      // end with ';' if necessary
+      this.formatCmd(cmdblock.commands[i]);
+
       if (i !== cmdblock.commands.length - 1) {
         this.newline();
       }
@@ -255,6 +260,97 @@ class Formatter {
     this.removeIndent();
     this.newline();
   }
+
+  /**
+   * @param {AssignAstNode | ProcCallAstNode | IfAstNode | WhileAstNode | ForAstNode} cmd
+   */
+  formatCmd(cmd) {
+    if (cmd instanceof AssignAstNode) {
+      this.writeSymbol(cmd.id);
+      this.writeSymbol(cmd.symbol);
+      this.formatExpr(cmd.expr);
+    } else if (cmd instanceof ProcCallAstNode) {
+      this.writeSymbol(cmd.symbol);
+      if (cmd.args) this.formatArgs(cmd.args);
+    } else if (cmd instanceof IfAstNode) {
+      this.writeSymbol(cmd.symbol);
+      this.formatExpr(cmd.expr);
+      this.writeChar("then");
+
+      if (cmd.body instanceof CmdBlockAstNode) {
+        this.newline();
+        this.writeSymbol(cmd.body.symbol);
+        this.formatCmdBlock(cmd.body);
+        this.writeChar("end");
+      } else {
+        this.addIndent();
+        this.newline();
+
+        this.formatCmd(cmd.body);
+
+        this.removeIndent();
+      }
+
+      if (cmd.elseBranch) {
+        const cmd = cmd.elseBranch;
+        this.newline();
+        this.writeChar("else");
+
+        if (cmd.body instanceof CmdBlockAstNode) {
+          this.newline();
+          this.writeSymbol(cmd.body.symbol);
+          this.formatCmdBlock(cmd.body);
+          this.writeChar("end");
+        } else if (cmd.body instanceof IfAstNode) {
+          this.formatCmd(cmd.body);
+        } else {
+          this.addIndent();
+          this.newline();
+          this.formatCmd(cmd.body);
+          this.removeIndent();
+        }
+      }
+    } else if (cmd instanceof WhileAstNode) {
+      this.writeSymbol(cmd.symbol);
+      this.formatExpr(cmd.expr);
+      this.writeChar("do");
+
+      if (cmd.body instanceof CmdBlockAstNode) {
+        this.newline();
+        this.writeSymbol(cmd.body.symbol);
+        this.formatCmdBlock(cmd.body);
+        this.writeChar("end");
+      } else {
+        this.addIndent();
+        this.newline();
+        this.formatCmd(cmd.body);
+        this.removeIndent();
+      }
+    } else if (cmd instanceof ForAstNode) {
+      this.writeSymbol(cmd.symbol);
+      this.formatCmd(cmd.assignment);
+      this.writeSymbol(cmd.type);
+      this.formatExpr(cmd.targetexpr);
+      this.writeChar("do");
+
+      if (cmd.body instanceof CmdBlockAstNode) {
+        this.newline();
+        this.writeSymbol(cmd.body.symbol);
+        this.formatCmdBlock(cmd.body);
+        this.writeChar("end");
+      } else {
+        this.addIndent();
+        this.newline();
+        this.formatCmd(cmd.body);
+        this.removeIndent();
+      }
+    }
+  }
+
+  /**
+   * @param {BinaryAstNode | UnaryAstNode | ProcCallAstNode | NumAstNode} expr
+   */
+  formatExpr(expr) {}
 }
 
 /**
