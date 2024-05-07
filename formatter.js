@@ -17,8 +17,9 @@ class Formatter {
      * @type {Array<Symbol>}
      */
     this.comments = [];
+    this.pendingComments = 0;
 
-    /** @type{fs.WriteStream} */
+    /** @type {fs.WriteStream} */
     this.wstream = null;
 
     this.indentChar = " ";
@@ -57,19 +58,45 @@ class Formatter {
   }
 
   /**
+   * @private
+   */
+  _writeComment() {
+    if (!this.hasComments()) return;
+
+    this._write(this.comments[0]);
+    // remove first index
+    this.comments.splice(0, 1);
+  }
+
+  /**
    * @param {Symbol} symbol
-   * TODO: check if there are comments after him that belong to the
-   * same line on the program
    */
   writeSymbol(symbol) {
     while (this.commentGoesFirst(symbol)) {
       const comment = this.comments[0];
-      this._write(comment);
-      // remove first index
-      this.comments.splice(0, 1);
+      this._writeComment();
+      if (comment.pos.line < symbol.pos.line) {
+        this.newline();
+      }
     }
 
     this._write(symbol);
+
+    /**
+     * Any comment that is at the same line as the current symbol is a pending
+     * comment, if a newline is called but these pending comments weren't
+     * handled then we'll print them before going to the next line
+     */
+    let pendingComments = 0;
+    for (let com of this.comments) {
+      if (com.pos.line === symbol.pos.line) {
+        pendingComments += 1;
+      } else {
+        break;
+      }
+    }
+
+    this.pendingComments = pendingComments;
   }
 
   writeChar(char, nospace = false) {
@@ -77,6 +104,12 @@ class Formatter {
   }
 
   newline() {
+    // writing pending comments before the newline
+    while (this.pendingComments > 0) {
+      this._writeComment();
+      this.pendingComments -= 1;
+    }
+
     this.wstream.write("\n");
     this.wstream.write(
       this.indentChar.repeat(this.indentSize * this.indentLevel),
@@ -245,7 +278,6 @@ const format = (filepath, ast, formatter) => {
   if (ast.subprogram) {
     for (let i = 0; i < ast.subprogram.length; ++i) {
       formatter.formatSubprogram(ast.subprogram[i]);
-      formatter.newline();
     }
   }
 
