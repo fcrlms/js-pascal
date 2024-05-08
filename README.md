@@ -88,7 +88,7 @@ Por padrão os códigos são indentados com espaços e usando 4 espaços, na dec
 
 Quando há blocos de comando com 'begin' e 'end', estas duas keywords ficam no mesmo nível da estrutura que iniciou o bloco e conteúdo fica entre eles com um nível a mais de indentação.
 
-Para ter uma separação melhor do que faz de uma procedure (o o programa principal) e as procedures que ela cria, toda declaração de procedure faz todo seu conteúdo aparecer em um nível a mais de indentação.
+Para ter uma separação melhor do que faz parte de uma procedure (ou o programa principal) e as procedures que ela cria, toda declaração de procedure faz todo seu conteúdo aparecer em um nível a mais de indentação.
 
 A formatação de comentários ainda não está completamente correta, primeiro tivemos que mudar o lexer para retornar um símbolo de comentário que não é incluído na árvore sintática final mas é coletado pelo formatador. Dessa maneira podemos ter uma certa noção de aonde mais ou menos os comentários ficam mas poderia ser mais precisa se as posições de todos os tokens fosse guardada nos nós da árvore. No nó de bloco de comando, por exemplo, guardamos o símbolo 'begin' mas não guardamos o 'end', então podemos saber que um comentário está depois do bloco mas não o quão longe o 'end'.
 
