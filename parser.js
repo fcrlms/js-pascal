@@ -506,11 +506,7 @@ module.exports = (filepath, errorLogger, formatter = null) => {
     // eslint-disable-next-line no-empty, no-unused-vars
   } catch (_) {}
 
-  if (parser.hadError) {
-    // stop
-  }
-
-  return ast;
+  return { ast, hadError: parser.hadError };
 };
 
 function program() {

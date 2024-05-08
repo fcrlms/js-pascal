@@ -42,14 +42,27 @@ const main = () => {
     }
   }
 
+  if (toFormat && toHighlight) {
+    console.log("Error: choose only one between format and highlight.");
+    return;
+  }
+
   const errorLogger = new Logger(filepath);
 
   let formatter = null;
   if (toFormat) formatter = new Formatter();
 
-  const ast = parse(filepath, errorLogger, formatter);
+  const { ast, hadError } = parse(filepath, errorLogger, formatter);
 
   if (toFormat && !toHighlight) {
+    if (hadError) {
+      errorLogger.printAll();
+      console.log(
+        "Error: wasn't possible to format the file due to parser error.",
+      );
+      return;
+    }
+
     format(filepath, ast, formatter);
     return;
   }
@@ -57,6 +70,13 @@ const main = () => {
   const final_ast = semantic(ast, errorLogger, filepath);
 
   if (toHighlight) {
+    if (hadError) {
+      errorLogger.printAll();
+      console.log(
+        "Error: wasn't possible to highlight the file due to parser error.",
+      );
+      return;
+    }
     highlight(final_ast, filepath);
   } else {
     errorLogger.printAll();
