@@ -302,8 +302,13 @@ class Formatter {
       this.formatExpr(cmd.expr);
     } else if (cmd instanceof ProcCallAstNode) {
       this.writeSymbol(cmd.symbol);
-      if (cmd.args) {
-        // TODO: handle each expression
+      if (cmd.args && cmd.args.length) {
+        this.writeChar("(", true);
+        this.isAtStartOfLine = true;
+        for (let expr of cmd.args) {
+          this.formatExpr(expr);
+        }
+        this.writeChar(")", true);
       }
     } else if (cmd instanceof IfAstNode) {
       this.writeSymbol(cmd.symbol);
@@ -387,7 +392,14 @@ class Formatter {
     if (expr instanceof ProcCallAstNode) {
       this.writeSymbol(expr.symbol);
       if (expr.args) {
-        // TODO: handle each expression
+        if (expr.args && expr.args.length) {
+          this.writeChar("(", true);
+          this.isAtStartOfLine = true;
+          for (let argexpr of expr.args) {
+            this.formatExpr(argexpr);
+          }
+          this.writeChar(")", true);
+        }
       }
     } else if (expr instanceof NumAstNode) {
       this.writeSymbol(expr.symbol);

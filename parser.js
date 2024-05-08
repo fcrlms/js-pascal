@@ -14,8 +14,10 @@ const {
   ProgramAstNode,
   ForAstNode,
 } = require("./ast.js");
-// eslint-disable-next-line no-unused-vars
+/* eslint-disable no-unused-vars */
+const { Logger } = require("./logger.js");
 const { Formatter } = require("./formatter.js");
+/* eslint-enable no-unused-vars */
 
 class CharBuffer {
   /**
@@ -27,7 +29,7 @@ class CharBuffer {
     this.rstream = fs.createReadStream(filepath).setEncoding("utf-8");
 
     /** @type {Buffer?} */
-    this.buffer = Buffer.alloc(8192);
+    this.buffer = Buffer.alloc(16384);
     this.buffer_size = this.read();
     this.string_buf = this.buffer.toString("utf-8", 0, this.buffer_size);
     this.string_offset = 0;
@@ -38,7 +40,7 @@ class CharBuffer {
   }
 
   read() {
-    return fs.readSync(this.fd, this.buffer, 0, 8192, this.offset);
+    return fs.readSync(this.fd, this.buffer, 0, 16384, this.offset);
   }
 
   isFinished() {
@@ -47,7 +49,10 @@ class CharBuffer {
 
   next() {
     this.string_offset += 1;
-    this.offset += 1;
+
+    const curr = this.getCurr();
+    if (curr) this.offset += Buffer.from(curr).length;
+    else this.offset += 1;
 
     if (this.string_offset >= this.string_buf.length) {
       this.buffer_size = this.read();
@@ -83,6 +88,7 @@ class CharBuffer {
     if (pos >= this.string_buf.length) {
       this.buffer_size = this.read();
       this.string_offset = 0;
+      this.string_buf = this.buffer.toString("utf-8", 0, this.buffer_size);
 
       if (!this.buffer_size) return null;
     }
@@ -101,10 +107,14 @@ const is_alphanum_ = (c) => is_alpha(c) || is_digit(c) || c === "_";
 class Lexer {
   /**
    * @param {String} filepath
+   * @param {Logger} errorLogger
    */
-  constructor(filepath) {
+  constructor(filepath, errorLogger) {
     /** @type {CharBuffer} */
     this.buffer = new CharBuffer(filepath);
+
+    /** @type {Logger} */
+    this.errorLogger = errorLogger;
 
     /** @type {Position} starting at line 1 and column 1 */
     this.pos = new Position(1, 1);
@@ -134,8 +144,10 @@ class Lexer {
         this.buffer.next();
         continue;
       } else if (curr_char === "}") {
-        // TODO: log error, no matching opening comment
-        // also handle when the formatter rewrites
+        this.errorLogger.error(
+          new Symbol(Token.OTHER, curr_char, this.pos),
+          "there is no corresponding '{'",
+        );
         this.pos.col += 1;
         this.buffer.next();
         continue;
@@ -169,7 +181,7 @@ class Lexer {
       } while (this.buffer.getCurr() !== "}" && !this.buffer.isFinished());
 
       if (this.buffer.isFinished()) {
-        // TODO: log error, comment never closed
+        this.errorLogger.error(symbol, "this comment wasn't closed.");
       } else {
         lexeme += this.buffer.getCurr(); // the closing bracket
         this.buffer.next();
@@ -288,6 +300,10 @@ class Lexer {
         break;
       default:
         // TODO: log error, unrecognized symbol and return the symbol
+        this.errorLogger.error(
+          symbol,
+          `unrecognized character: '${curr_char}'`,
+        );
         token = Token.OTHER; // unnecessary but it's nice to remind yourself
         break;
     }
@@ -325,13 +341,17 @@ class Lexer {
 class Parser {
   /**
    * @param {String} filepath
+   * @param {Logger} errorLogger
    * @param {Formatter} formatter
    */
-  constructor(filepath, formatter = null) {
+  constructor(filepath, errorLogger, formatter = null) {
     this.pos = 0;
 
     /** @type {String} */
     this.filepath = filepath;
+
+    /** @type {Logger} */
+    this.errorLogger = errorLogger;
 
     /** @type {Boolean} */
     this.hadError = false;
@@ -339,7 +359,7 @@ class Parser {
     this.panicMode = false;
 
     /** @type {Lexer} */
-    this.lexer = new Lexer(filepath);
+    this.lexer = new Lexer(filepath, errorLogger);
 
     /** @type {Formatter?} */
     this.formatter = formatter;
@@ -450,6 +470,10 @@ class Parser {
   error(symbol, msg) {
     this.hadError = true;
     this.panicMode = true;
+
+    this.errorLogger.error(symbol, msg);
+
+    // redundant but it's useful to use with try catch blocks
     const prefix = `${this.filepath}:${symbol.pos.line}:${symbol.pos.col}: `;
     throw new Error(prefix + msg);
   }
@@ -460,23 +484,27 @@ class Parser {
    */
   warn(symbol, msg) {
     this.hadError = true;
-    const prefix = `${this.filepath}:${symbol.pos.line}:${symbol.pos.col}: `;
-    console.error(prefix + msg);
+    this.errorLogger.error(symbol, msg);
   }
 }
 
 /** @type {Parser} */
 let parser;
 
-module.exports = (filepath, formatter = null) => {
-  parser = new Parser(filepath, formatter);
+/**
+ * @param {String} filepath
+ * @param {Logger} errorLogger
+ * @param {Formatter} formatter
+ * @returns {ProgramAstNode}
+ */
+module.exports = (filepath, errorLogger, formatter = null) => {
+  parser = new Parser(filepath, errorLogger, formatter);
 
   let ast;
   try {
     ast = program();
-  } catch (e) {
-    console.error(e.message);
-  }
+    // eslint-disable-next-line no-empty, no-unused-vars
+  } catch (_) {}
 
   if (parser.hadError) {
     // stop
@@ -489,17 +517,15 @@ function program() {
   let symbol;
   try {
     symbol = parser.consume(Token.PROGRAM, "First word should be 'program'.");
-  } catch (e) {
-    console.error(e.message);
-  }
+    // eslint-disable-next-line no-empty, no-unused-vars
+  } catch (_) {}
 
   let id;
   try {
     if (!parser.panicMode)
       id = parser.consume(Token.ID, "Expected program identifier.");
-  } catch (e) {
-    console.error(e.message);
-  }
+    // eslint-disable-next-line no-empty, no-unused-vars
+  } catch (_) {}
 
   if (!parser.panicMode) {
     try {
@@ -507,9 +533,8 @@ function program() {
         Token.SEMICOLON,
         "Expected ';' after program declaration.",
       );
-    } catch (e) {
-      console.error(e.message);
-    }
+      // eslint-disable-next-line no-empty, no-unused-vars
+    } catch (_) {}
   }
 
   if (parser.panicMode) {
@@ -524,9 +549,8 @@ function program() {
   if (parser.match(Token.VAR)) {
     try {
       var_node = var_decl();
-    } catch (e) {
-      console.error(e.message);
-    }
+      // eslint-disable-next-line no-empty, no-unused-vars
+    } catch (_) {}
   }
 
   if (parser.panicMode) {
@@ -602,9 +626,8 @@ function mult_subprograms() {
     try {
       if (!parser.panicMode)
         id = parser.consume(Token.ID, "Expected procedure identifier.");
-    } catch (e) {
-      console.error(e.message);
-    }
+      // eslint-disable-next-line no-empty, no-unused-vars
+    } catch (_) {}
 
     if (parser.panicMode) {
       if (parser.check(Token.LPAREN, Token.SEMICOLON)) {
@@ -617,9 +640,8 @@ function mult_subprograms() {
       if (parser.match(Token.LPAREN)) {
         try {
           args = arglist();
-        } catch (e) {
-          console.error(e.message);
-        }
+          // eslint-disable-next-line no-empty, no-unused-vars
+        } catch (_) {}
       }
     }
 
@@ -629,9 +651,8 @@ function mult_subprograms() {
           Token.SEMICOLON,
           "Expected ';' after procedure declaration.",
         );
-      } catch (e) {
-        console.error(e.message);
-      }
+        // eslint-disable-next-line no-empty, no-unused-vars
+      } catch (_) {}
     }
 
     if (parser.panicMode) {
@@ -646,9 +667,8 @@ function mult_subprograms() {
     if (parser.match(Token.VAR)) {
       try {
         vardecl = var_decl();
-      } catch (e) {
-        console.error(e.message);
-      }
+        // eslint-disable-next-line no-empty, no-unused-vars
+      } catch (_) {}
     }
 
     if (parser.panicMode) {
@@ -734,9 +754,8 @@ function composite_command() {
     try {
       const cmd = command();
       commands.push(cmd);
-    } catch (e) {
-      console.error(e.message);
-    }
+      // eslint-disable-next-line no-empty, no-unused-vars
+    } catch (_) {}
 
     if (parser.panicMode) {
       parser.panicMode = false;

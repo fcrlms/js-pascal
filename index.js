@@ -1,10 +1,8 @@
-// const lexer = require("./lexer.js");
+const { Logger } = require("./logger.js");
 const parse = require("./parser.js");
 const semantic = require("./semantic.js");
 const { Formatter, format } = require("./formatter.js");
 const { highlight } = require("./highlighter.js");
-
-const util = require("util");
 
 const printUsage = () => {
   console.log("Usage: node index.js [options] ./path/to/pascal.pas");
@@ -44,23 +42,25 @@ const main = () => {
     }
   }
 
+  const errorLogger = new Logger(filepath);
+
   let formatter = null;
   if (toFormat) formatter = new Formatter();
 
-  const ast = parse(filepath, formatter);
+  const ast = parse(filepath, errorLogger, formatter);
 
   if (toFormat && !toHighlight) {
-    format(filepath + "f", ast, formatter);
+    format(filepath, ast, formatter);
     return;
   }
 
-  const final_ast = semantic(ast, filepath);
+  const final_ast = semantic(ast, errorLogger, filepath);
 
   if (toHighlight) {
     highlight(final_ast, filepath);
+  } else {
+    errorLogger.printAll();
   }
-
-  // console.log(util.inspect(final_ast, false, null, true));
 };
 
 main();
