@@ -676,7 +676,7 @@ function mult_subprograms() {
 
     let subprograms;
     if (parser.check(Token.PROCEDURE)) {
-      mult_subprograms();
+      subprograms = mult_subprograms();
     }
 
     parser.consume(Token.BEGIN, "Expected 'begin'.");
