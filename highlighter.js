@@ -26,7 +26,7 @@ class Highlighter {
    */
   constructor(ast, filepath) {
     this.ast = ast;
-    this.contents = fs.readFileSync(filepath).toString();
+    this.contents = fs.readFileSync(filepath);
     this.offset = 0;
     this.stream = process.stdout;
   }
@@ -38,18 +38,27 @@ class Highlighter {
   finish() {
     let isComment = false;
     // TODO: better efficiency
-    for (let i = this.offset; i < this.contents.length; ++i) {
-      if (!isComment && this.contents[i] === "{") {
+    let i = this.offset;
+    while (i < this.contents.length) {
+      const currChar = this.contents.toString(
+        "utf-8",
+        i,
+        Math.min(i + 4, this.contents.length),
+      )[0];
+
+      if (!isComment && currChar === "{") {
         isComment = true;
         this.stream.write(get_color_code(COLORS.YELLOW));
       }
 
-      this.stream.write(this.contents[i]);
+      this.stream.write(currChar);
 
-      if (isComment && this.contents[i] === "}") {
+      if (isComment && currChar === "}") {
         isComment = false;
         this.stream.write(get_color_code(COLORS.RESET));
       }
+
+      i += Buffer.byteLength(currChar);
     }
 
     this.offset = this.contents.length - 1;
@@ -63,18 +72,27 @@ class Highlighter {
 
     let isComment = false;
     // TODO: better efficiency
-    for (let i = this.offset; i < targetOffset; ++i) {
-      if (!isComment && this.contents[i] === "{") {
+    let i = this.offset;
+    while (i < targetOffset) {
+      const currChar = this.contents.toString(
+        "utf-8",
+        i,
+        Math.min(i + 4, this.contents.length),
+      )[0];
+
+      if (!isComment && currChar === "{") {
         isComment = true;
         this.stream.write(get_color_code(COLORS.YELLOW));
       }
 
-      this.stream.write(this.contents[i]);
+      this.stream.write(currChar);
 
-      if (isComment && this.contents[i] === "}") {
+      if (isComment && currChar === "}") {
         isComment = false;
         this.stream.write(get_color_code(COLORS.RESET));
       }
+
+      i += Buffer.byteLength(currChar);
     }
 
     this.offset = targetOffset;
